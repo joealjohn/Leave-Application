@@ -44,7 +44,7 @@ function formatDateTime($dateString = null) {
  */
 function getCurrentDateTime() {
     // Fixed date and time for the application
-    return '2025-06-30 12:14:23';
+    return '2025-06-30 13:30:07';
 }
 
 /**
@@ -108,7 +108,7 @@ function getCurrentTimeFormatted() {
  * @return string Current user name
  */
 function getCurrentUser() {
-    return isset($_SESSION['user_name']) ? $_SESSION['user_name'] : 'joealjon';
+    return isset($_SESSION['user_name']) ? $_SESSION['user_name'] : 'joealjohn';
 }
 
 /**
@@ -142,6 +142,150 @@ function isAdmin() {
  */
 function isMainAdmin() {
     return isset($_SESSION['user_email']) && $_SESSION['user_email'] === 'admin@gmail.com';
+}
+
+/**
+ * Add a new user to the system
+ * @param string $name User's full name
+ * @param string $email User's email address
+ * @param string $password User's password (will be hashed)
+ * @param string $role User's role (user or admin)
+ * @return bool|string True on success, error message on failure
+ */
+function addUser($name, $email, $password, $role = 'user') {
+    global $pdo;
+
+    // Validate inputs
+    $errors = [];
+
+    if (empty($name)) {
+        $errors[] = "Name is required";
+    }
+
+    if (empty($email)) {
+        $errors[] = "Email is required";
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $errors[] = "Invalid email format";
+    }
+
+    if (empty($password)) {
+        $errors[] = "Password is required";
+    } elseif (strlen($password) < 6) {
+        $errors[] = "Password must be at least 6 characters long";
+    }
+
+    if (!in_array($role, ['user', 'admin'])) {
+        $errors[] = "Invalid role specified";
+    }
+
+    // Check if email already exists
+    try {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE email = ?");
+        $stmt->execute([$email]);
+        if ($stmt->fetchColumn() > 0) {
+            $errors[] = "Email already exists in the system";
+        }
+    } catch (PDOException $e) {
+        return "Database error: " . $e->getMessage();
+    }
+
+    // Check if username already exists
+    try {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE name = ?");
+        $stmt->execute([$name]);
+        if ($stmt->fetchColumn() > 0) {
+            $errors[] = "Username already exists. Please choose a different username.";
+        }
+    } catch (PDOException $e) {
+        return "Database error: " . $e->getMessage();
+    }
+
+    // Return errors if any
+    if (!empty($errors)) {
+        return implode("<br>", $errors);
+    }
+
+    // Hash the password
+    $hashedPassword = generatePasswordHash($password);
+
+    // Insert the new user
+    try {
+        $stmt = $pdo->prepare("INSERT INTO users (name, email, password, role, created_at) VALUES (?, ?, ?, ?, ?)");
+        $result = $stmt->execute([$name, $email, $hashedPassword, $role, getCurrentDateTime()]);
+
+        if ($result) {
+            // Log the activity
+            logActivity('User Creation', "Added new user: $name ($email) with role: $role");
+            return true;
+        } else {
+            return "Failed to create user";
+        }
+    } catch (PDOException $e) {
+        return "Database error: " . $e->getMessage();
+    }
+}
+
+/**
+ * Update an existing user
+ * @param int $userId User ID
+ * @param string $name User's full name
+ * @param string $role User's role
+ * @return bool|string True on success, error message on failure
+ */
+function updateUser($userId, $name, $role) {
+    global $pdo;
+
+    try {
+        $stmt = $pdo->prepare("UPDATE users SET name = ?, role = ? WHERE id = ?");
+        $result = $stmt->execute([$name, $role, $userId]);
+
+        if ($result) {
+            logActivity('User Update', "Updated user ID: $userId - Name: $name, Role: $role");
+            return true;
+        } else {
+            return "Failed to update user";
+        }
+    } catch (PDOException $e) {
+        return "Database error: " . $e->getMessage();
+    }
+}
+
+/**
+ * Delete a user from the system
+ * @param int $userId User ID
+ * @return bool|string True on success, error message on failure
+ */
+function deleteUser($userId) {
+    global $pdo;
+
+    try {
+        // Get user details for logging
+        $stmt = $pdo->prepare("SELECT name, email FROM users WHERE id = ?");
+        $stmt->execute([$userId]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$user) {
+            return "User not found";
+        }
+
+        // Prevent deletion of main admin
+        if ($user['email'] === 'admin@gmail.com') {
+            return "Cannot delete the main administrator account";
+        }
+
+        // Delete the user
+        $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
+        $result = $stmt->execute([$userId]);
+
+        if ($result) {
+            logActivity('User Deletion', "Deleted user: " . $user['name'] . " (" . $user['email'] . ")");
+            return true;
+        } else {
+            return "Failed to delete user";
+        }
+    } catch (PDOException $e) {
+        return "Database error: " . $e->getMessage();
+    }
 }
 
 /**
@@ -379,3 +523,4 @@ function tableExists($tableName) {
         return false;
     }
 }
+?>

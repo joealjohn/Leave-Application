@@ -35,6 +35,48 @@ body::before {
     padding-bottom: 80px; /* Ensure space for footer */
 }
 
+/* MODAL FIXES - Critical for preventing overlay issues */
+.modal-backdrop {
+    z-index: 1040 !important;
+}
+
+.modal {
+    z-index: 1050 !important;
+}
+
+.modal-open {
+    overflow: hidden !important;
+}
+
+/* Remove any leftover modal backdrops */
+body.modal-open .modal-backdrop.show {
+    opacity: 0.5;
+}
+
+/* Ensure modal close buttons work properly */
+.btn-close, .btn-close-white {
+    background: transparent !important;
+    border: none !important;
+    opacity: 1 !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.btn-close:focus, .btn-close-white:focus {
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+.btn-close:hover, .btn-close-white:hover {
+    opacity: 0.75 !important;
+}
+
+/* Button focus fixes */
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .btn-link.nav-link:active:focus, .btn.focus, .btn:active.focus, .btn-link.nav-link.focus, .btn-link.nav-link:active.focus {
+    outline: 0 !important;
+    box-shadow: none !important;
+}
+
 /* Date header styling */
 .date-header {
     display: inline-flex;
@@ -70,6 +112,7 @@ body::before {
 .card-header {
     border-top-left-radius: 8px;
     border-top-right-radius: 8px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.125);
     font-weight: 500;
 }
 
@@ -117,6 +160,13 @@ body::before {
 .btn {
     border-radius: 5px;
     font-weight: 500;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.btn:focus, .btn:active {
+    outline: none !important;
+    box-shadow: none !important;
 }
 
 .btn-outline-success:hover,
@@ -154,6 +204,7 @@ body::before {
 .form-control:focus, .form-select:focus {
     border-color: #28a745;
     box-shadow: 0 0 0 0.25rem rgba(40, 167, 69, 0.25);
+    outline: none !important;
 }
 
 .input-group-text {

@@ -5,6 +5,9 @@
 
 document.addEventListener('DOMContentLoaded', function() {
 
+    // CRITICAL: Fix modal backdrop issues
+    fixModalBackdropIssues();
+
     // Initialize tooltips
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
     var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
@@ -119,134 +122,149 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (passwordInput && strengthIndicator) {
         passwordInput.addEventListener('input', function() {
-            const password = passwordInput.value;
+            const password = this.value;
             let strength = 0;
+            let strengthText = '';
+            let strengthClass = '';
 
-            if (password.length >= 8) strength += 1;
-            if (password.match(/[a-z]/) && password.match(/[A-Z]/)) strength += 1;
-            if (password.match(/[0-9]/)) strength += 1;
-            if (password.match(/[^a-zA-Z0-9]/)) strength += 1;
+            if (password.length >= 6) strength++;
+            if (/[a-z]/.test(password)) strength++;
+            if (/[A-Z]/.test(password)) strength++;
+            if (/[0-9]/.test(password)) strength++;
+            if (/[^a-zA-Z0-9]/.test(password)) strength++;
 
             switch (strength) {
                 case 0:
-                    strengthIndicator.textContent = 'Very Weak';
-                    strengthIndicator.className = 'text-danger';
-                    break;
                 case 1:
-                    strengthIndicator.textContent = 'Weak';
-                    strengthIndicator.className = 'text-warning';
+                    strengthText = 'Very Weak';
+                    strengthClass = 'text-danger';
                     break;
                 case 2:
-                    strengthIndicator.textContent = 'Fair';
-                    strengthIndicator.className = 'text-warning';
+                    strengthText = 'Weak';
+                    strengthClass = 'text-warning';
                     break;
                 case 3:
-                    strengthIndicator.textContent = 'Good';
-                    strengthIndicator.className = 'text-success';
+                    strengthText = 'Medium';
+                    strengthClass = 'text-info';
                     break;
                 case 4:
-                    strengthIndicator.textContent = 'Strong';
-                    strengthIndicator.className = 'text-success';
+                    strengthText = 'Strong';
+                    strengthClass = 'text-success';
+                    break;
+                case 5:
+                    strengthText = 'Very Strong';
+                    strengthClass = 'text-success fw-bold';
                     break;
             }
+
+            strengthIndicator.textContent = strengthText;
+            strengthIndicator.className = strengthClass;
         });
-    }
-
-    // Real-time clock update (disabled since we're using fixed datetime for the project)
-    /*
-    function updateClock() {
-        const now = new Date();
-        const clockElement = document.getElementById('current-time');
-        if (clockElement) {
-            clockElement.textContent = now.toISOString().slice(0, 19).replace('T', ' ');
-        }
-        setTimeout(updateClock, 1000);
-    }
-    updateClock();
-    */
-
-    // Highlight current page in navigation
-    const currentPath = window.location.pathname;
-    const navLinks = document.querySelectorAll('.navbar-nav .nav-link');
-
-    navLinks.forEach(function(link) {
-        const href = link.getAttribute('href');
-        if (href && currentPath.includes(href)) {
-            link.classList.add('active');
-        }
-    });
-
-    // Form validation
-    const forms = document.querySelectorAll('.needs-validation');
-
-    Array.prototype.slice.call(forms).forEach(function(form) {
-        form.addEventListener('submit', function(event) {
-            if (!form.checkValidity()) {
-                event.preventDefault();
-                event.stopPropagation();
-            }
-            form.classList.add('was-validated');
-        }, false);
-    });
-
-    // Digital clock display
-    const clockElement = document.getElementById('digital-clock');
-
-    // Current time is fixed for this project, so we're displaying the static time
-    if (clockElement) {
-        clockElement.textContent = '2025-06-29 17:03:09';
     }
 });
 
-// Function to update leave summary in reports
-function updateLeaveSummary() {
-    const leaveTypeSelect = document.getElementById('leave-type-filter');
-    const statusSelect = document.getElementById('status-filter');
-    const summaryElement = document.getElementById('leave-summary');
+/**
+ * CRITICAL FUNCTION: Fix modal backdrop issues
+ * This prevents the black overlay problem
+ */
+function fixModalBackdropIssues() {
+    // Remove any orphaned modal backdrops
+    const orphanedBackdrops = document.querySelectorAll('.modal-backdrop');
+    orphanedBackdrops.forEach(backdrop => {
+        backdrop.remove();
+    });
 
-    if (leaveTypeSelect && statusSelect && summaryElement) {
-        const leaveType = leaveTypeSelect.value;
-        const status = statusSelect.value;
-
-        // This would normally fetch data from the backend
-        // For this static version, we're just showing a placeholder message
-        summaryElement.textContent = `Showing summary for ${leaveType !== 'all' ? leaveType : 'all'} leave types with ${status !== 'all' ? status : 'any'} status`;
+    // Remove modal-open class from body if no modals are actually open
+    const openModals = document.querySelectorAll('.modal.show');
+    if (openModals.length === 0) {
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
     }
-}
 
-// Export table to CSV
-function exportTableToCSV(tableId, filename = 'export.csv') {
-    const table = document.getElementById(tableId);
-    if (!table) return;
+    // Add event listeners to all modals to properly clean up
+    const allModals = document.querySelectorAll('.modal');
+    allModals.forEach(modal => {
+        // Clean up when modal is hidden
+        modal.addEventListener('hidden.bs.modal', function() {
+            // Remove any leftover backdrops
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            backdrops.forEach(backdrop => {
+                backdrop.remove();
+            });
 
-    let csvContent = "data:text/csv;charset=utf-8,";
-
-    // Get headers
-    const headers = [];
-    const headerCells = table.querySelectorAll('thead th');
-    headerCells.forEach(function(cell) {
-        headers.push(cell.textContent.trim());
-    });
-    csvContent += headers.join(',') + '\r\n';
-
-    // Get data rows
-    const rows = table.querySelectorAll('tbody tr');
-    rows.forEach(function(row) {
-        const rowData = [];
-        const cells = row.querySelectorAll('td');
-        cells.forEach(function(cell) {
-            // Replace commas in cell content to avoid CSV issues
-            rowData.push('"' + cell.textContent.trim().replace(/"/g, '""') + '"');
+            // Reset body classes and styles
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
         });
-        csvContent += rowData.join(',') + '\r\n';
+
+        // Ensure proper cleanup when modal is being hidden
+        modal.addEventListener('hide.bs.modal', function() {
+            // Force remove modal-open class after a short delay
+            setTimeout(() => {
+                if (document.querySelectorAll('.modal.show').length === 0) {
+                    document.body.classList.remove('modal-open');
+                    document.body.style.overflow = '';
+                    document.body.style.paddingRight = '';
+                }
+            }, 150);
+        });
     });
 
-    // Create download link
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', filename);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // Add emergency cleanup on click outside modals
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('modal-backdrop')) {
+            // Force close all modals and clean up
+            const openModals = document.querySelectorAll('.modal.show');
+            openModals.forEach(modal => {
+                const bsModal = bootstrap.Modal.getInstance(modal);
+                if (bsModal) {
+                    bsModal.hide();
+                }
+            });
+
+            // Emergency cleanup
+            setTimeout(() => {
+                const backdrops = document.querySelectorAll('.modal-backdrop');
+                backdrops.forEach(backdrop => backdrop.remove());
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
+                document.body.style.paddingRight = '';
+            }, 200);
+        }
+    });
+
+    // Emergency cleanup function - can be called manually
+    window.emergencyModalCleanup = function() {
+        const backdrops = document.querySelectorAll('.modal-backdrop');
+        backdrops.forEach(backdrop => backdrop.remove());
+
+        const modals = document.querySelectorAll('.modal.show');
+        modals.forEach(modal => modal.classList.remove('show'));
+
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+
+        console.log('Emergency modal cleanup performed');
+    };
 }
+
+// Additional helper functions
+window.closeAllModals = function() {
+    const modals = document.querySelectorAll('.modal');
+    modals.forEach(modal => {
+        const bsModal = bootstrap.Modal.getInstance(modal);
+        if (bsModal) {
+            bsModal.hide();
+        }
+    });
+};
+
+// Keyboard shortcut for emergency cleanup (Ctrl+Shift+Escape)
+document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.shiftKey && e.key === 'Escape') {
+        window.emergencyModalCleanup();
+    }
+});
