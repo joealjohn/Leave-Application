@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
     last_login TIMESTAMP NULL
     );
 
--- Create the leave_requests table
+-- Create the leave_requests table with admin_comment column
 CREATE TABLE IF NOT EXISTS leave_requests (
                                               id INT AUTO_INCREMENT PRIMARY KEY,
                                               user_id INT NOT NULL,
@@ -23,10 +23,12 @@ CREATE TABLE IF NOT EXISTS leave_requests (
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
     status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+    admin_comment TEXT NULL,
     applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     reviewed_at TIMESTAMP NULL,
-    reviewed_by VARCHAR(100) NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    reviewed_by INT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
     );
 
 -- Create activity logs table

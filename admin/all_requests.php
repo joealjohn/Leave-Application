@@ -149,23 +149,29 @@ try {
                         <tbody>
                         <?php foreach ($requests as $request): ?>
                             <?php
-                            // Calculate leave days
-                            $days = calculateLeaveDays($request['start_date'], $request['end_date']);
+                            $startDate = new DateTime($request['start_date']);
+                            $endDate = new DateTime($request['end_date']);
+                            $interval = $startDate->diff($endDate);
+                            $days = $interval->days + 1;
                             ?>
                             <tr>
                                 <td><?php echo htmlspecialchars($request['user_name']); ?></td>
                                 <td><?php echo htmlspecialchars($request['user_email']); ?></td>
-                                <td><?php echo ucfirst($request['leave_type']); ?></td>
+                                <td>
+                                    <span class="badge bg-info">
+                                        <?php echo ucfirst($request['leave_type']); ?>
+                                    </span>
+                                </td>
                                 <td><?php echo formatDateForDisplay($request['start_date']); ?></td>
                                 <td><?php echo formatDateForDisplay($request['end_date']); ?></td>
                                 <td><?php echo $days; ?></td>
                                 <td>
-                                            <span class="badge bg-<?php
-                                            echo $request['status'] === 'approved' ? 'success' :
-                                                ($request['status'] === 'rejected' ? 'danger' : 'warning');
-                                            ?>">
-                                                <?php echo ucfirst($request['status']); ?>
-                                            </span>
+                                    <span class="badge bg-<?php
+                                    echo $request['status'] === 'approved' ? 'success' :
+                                        ($request['status'] === 'rejected' ? 'danger' : 'warning');
+                                    ?>">
+                                        <?php echo ucfirst($request['status']); ?>
+                                    </span>
                                 </td>
                                 <td><?php echo formatDateForDisplay($request['applied_at']); ?></td>
                                 <td>
@@ -189,74 +195,20 @@ try {
                                             <i class="fas fa-eye"></i>
                                         </button>
                                         <?php if ($request['status'] === 'pending'): ?>
-                                            <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#approveModal<?php echo $request['id']; ?>">
+                                            <button type="button" class="btn btn-sm btn-success approve-btn"
+                                                    data-request-id="<?php echo $request['id']; ?>"
+                                                    data-user-name="<?php echo htmlspecialchars($request['user_name']); ?>">
                                                 <i class="fas fa-check"></i>
                                             </button>
-                                            <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal<?php echo $request['id']; ?>">
+                                            <button type="button" class="btn btn-sm btn-danger reject-btn"
+                                                    data-request-id="<?php echo $request['id']; ?>"
+                                                    data-user-name="<?php echo htmlspecialchars($request['user_name']); ?>">
                                                 <i class="fas fa-times"></i>
                                             </button>
                                         <?php endif; ?>
                                     </div>
                                 </td>
                             </tr>
-
-                            <!-- Approve Modal -->
-                            <?php if ($request['status'] === 'pending'): ?>
-                                <div class="modal fade" id="approveModal<?php echo $request['id']; ?>" tabindex="-1" aria-labelledby="approveModalLabel<?php echo $request['id']; ?>" aria-hidden="true">
-                                    <div class="modal-dialog">
-                                        <div class="modal-content">
-                                            <div class="modal-header bg-success text-white">
-                                                <h5 class="modal-title" id="approveModalLabel<?php echo $request['id']; ?>">Approve Leave Request</h5>
-                                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                                            </div>
-                                            <form method="POST" action="all_requests.php">
-                                                <div class="modal-body">
-                                                    <p>Are you sure you want to approve the leave request from <strong><?php echo htmlspecialchars($request['user_name']); ?></strong>?</p>
-                                                    <div class="mb-3">
-                                                        <label for="comment<?php echo $request['id']; ?>" class="form-label">Comment (Optional)</label>
-                                                        <textarea class="form-control" id="comment<?php echo $request['id']; ?>" name="comment" rows="3" placeholder="Add a comment for this approval"></textarea>
-                                                    </div>
-                                                    <input type="hidden" name="request_id" value="<?php echo $request['id']; ?>">
-                                                    <input type="hidden" name="action" value="approve">
-                                                </div>
-                                                <div class="modal-footer">
-                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                    <button type="submit" class="btn btn-success">Approve</button>
-                                                </div>
-                                            </form>
-                                        </div>
-                                    </div>
-                                </div>
-                            <?php endif; ?>
-
-                            <!-- Reject Modal -->
-                            <?php if ($request['status'] === 'pending'): ?>
-                                <div class="modal fade" id="rejectModal<?php echo $request['id']; ?>" tabindex="-1" aria-labelledby="rejectModalLabel<?php echo $request['id']; ?>" aria-hidden="true">
-                                    <div class="modal-dialog">
-                                        <div class="modal-content">
-                                            <div class="modal-header bg-danger text-white">
-                                                <h5 class="modal-title" id="rejectModalLabel<?php echo $request['id']; ?>">Reject Leave Request</h5>
-                                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                                            </div>
-                                            <form method="POST" action="all_requests.php">
-                                                <div class="modal-body">
-                                                    <p>Are you sure you want to reject the leave request from <strong><?php echo htmlspecialchars($request['user_name']); ?></strong>?</p>
-                                                    <div class="mb-3">
-                                                        <label for="comment<?php echo $request['id']; ?>" class="form-label">Reason for Rejection</label>
-                                                        <textarea class="form-control" id="comment<?php echo $request['id']; ?>" name="comment" rows="3" placeholder="Provide a reason for rejection"></textarea>
-                                                    </div>
-                                                    <input type="hidden" name="request_id" value="<?php echo $request['id']; ?>">
-                                                    <input type="hidden" name="action" value="reject">
-                                                </div>
-                                                <div class="modal-footer">
-                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                    <button type="submit" class="btn btn-danger">Reject</button>
-                                                </div>
-                                            </form>
-                                        </div>
-                                    </div>
-                                </div>
-                            <?php endif; ?>
                         <?php endforeach; ?>
                         </tbody>
                     </table>
@@ -289,28 +241,79 @@ try {
                     </div>
                     <div class="col-md-6">
                         <p><strong>Total Days:</strong> <span id="modal-days"></span></p>
-                        <p><strong>Applied On:</strong> <span id="modal-applied-on"></span></p>
                         <p><strong>Status:</strong> <span id="modal-status-badge"></span></p>
+                        <p><strong>Applied On:</strong> <span id="modal-applied-on"></span></p>
                         <p><strong>Reviewed On:</strong> <span id="modal-reviewed-on"></span></p>
                         <p><strong>Reviewed By:</strong> <span id="modal-reviewed-by"></span></p>
                     </div>
                 </div>
-
                 <hr>
-
-                <div class="mb-3">
-                    <h6>Reason for Leave:</h6>
-                    <div id="modal-reason" class="p-3 bg-light rounded"></div>
-                </div>
+                <p><strong>Reason:</strong></p>
+                <p id="modal-reason" class="text-muted"></p>
 
                 <div id="modal-admin-comment-section" style="display: none;">
-                    <h6>Admin Comment:</h6>
-                    <div id="modal-admin-comment" class="p-3 bg-light rounded"></div>
+                    <hr>
+                    <p><strong>Admin Comment:</strong></p>
+                    <p id="modal-admin-comment" class="text-muted"></p>
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Approve Modal -->
+<div class="modal fade" id="approveModal" tabindex="-1" aria-labelledby="approveModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="approveModalLabel">Approve Leave Request</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="all_requests.php">
+                <div class="modal-body">
+                    <p>Are you sure you want to approve the leave request from <strong><span id="approve-user-name"></span></strong>?</p>
+                    <div class="mb-3">
+                        <label for="approve-comment" class="form-label">Comment (Optional)</label>
+                        <textarea class="form-control" id="approve-comment" name="comment" rows="3" placeholder="Add a comment for this approval"></textarea>
+                    </div>
+                    <input type="hidden" name="request_id" id="approve-request-id" value="">
+                    <input type="hidden" name="action" value="approve">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">Approve</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Reject Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-labelledby="rejectModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="rejectModalLabel">Reject Leave Request</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="all_requests.php">
+                <div class="modal-body">
+                    <p>Are you sure you want to reject the leave request from <strong><span id="reject-user-name"></span></strong>?</p>
+                    <div class="mb-3">
+                        <label for="reject-comment" class="form-label">Reason for Rejection</label>
+                        <textarea class="form-control" id="reject-comment" name="comment" rows="3" placeholder="Provide a reason for rejection" required></textarea>
+                    </div>
+                    <input type="hidden" name="request_id" id="reject-request-id" value="">
+                    <input type="hidden" name="action" value="reject">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Reject</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -322,12 +325,31 @@ try {
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Enhanced modal cleanup function
+        function cleanupModals() {
+            // Remove any existing backdrops
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            backdrops.forEach(backdrop => backdrop.remove());
+
+            // Reset body styles
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+
+            // Remove any lingering modal classes
+            document.body.removeAttribute('data-bs-overflow');
+            document.body.removeAttribute('data-bs-padding-right');
+        }
+
         // Handle view modal
         const viewButtons = document.querySelectorAll('.view-request-btn');
         const viewModal = document.getElementById('viewModal');
 
         viewButtons.forEach(button => {
-            button.addEventListener('click', function() {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                cleanupModals(); // Clean up before opening
+
                 // Get data from button attributes
                 const employee = this.getAttribute('data-employee');
                 const email = this.getAttribute('data-email');
@@ -379,23 +401,80 @@ try {
             });
         });
 
-        // Enhanced modal cleanup
-        const allModals = document.querySelectorAll('.modal');
-        allModals.forEach(modal => {
-            modal.addEventListener('hidden.bs.modal', function() {
-                // Force cleanup of backdrop
-                setTimeout(() => {
-                    const backdrops = document.querySelectorAll('.modal-backdrop');
-                    backdrops.forEach(backdrop => {
-                        backdrop.remove();
-                    });
+        // Handle approve buttons
+        const approveButtons = document.querySelectorAll('.approve-btn');
+        const approveModal = document.getElementById('approveModal');
 
-                    document.body.classList.remove('modal-open');
-                    document.body.style.overflow = '';
-                    document.body.style.paddingRight = '';
-                }, 100);
+        approveButtons.forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                cleanupModals(); // Clean up before opening
+
+                const requestId = this.getAttribute('data-request-id');
+                const userName = this.getAttribute('data-user-name');
+
+                document.getElementById('approve-request-id').value = requestId;
+                document.getElementById('approve-user-name').textContent = userName;
+                document.getElementById('approve-comment').value = '';
+
+                // Show modal
+                const modal = new bootstrap.Modal(approveModal);
+                modal.show();
             });
         });
+
+        // Handle reject buttons
+        const rejectButtons = document.querySelectorAll('.reject-btn');
+        const rejectModal = document.getElementById('rejectModal');
+
+        rejectButtons.forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                cleanupModals(); // Clean up before opening
+
+                const requestId = this.getAttribute('data-request-id');
+                const userName = this.getAttribute('data-user-name');
+
+                document.getElementById('reject-request-id').value = requestId;
+                document.getElementById('reject-user-name').textContent = userName;
+                document.getElementById('reject-comment').value = '';
+
+                // Show modal
+                const modal = new bootstrap.Modal(rejectModal);
+                modal.show();
+            });
+        });
+
+        // Enhanced modal cleanup for all modals
+        const allModals = document.querySelectorAll('.modal');
+        allModals.forEach(modal => {
+            // Clean up when modal is hidden
+            modal.addEventListener('hidden.bs.modal', function() {
+                cleanupModals();
+            });
+
+            // Prevent backdrop click from causing issues
+            modal.addEventListener('show.bs.modal', function() {
+                cleanupModals();
+            });
+        });
+
+        // Global click handler to clean up any stuck backdrops
+        document.addEventListener('click', function(e) {
+            if (e.target.classList.contains('modal-backdrop')) {
+                cleanupModals();
+            }
+        });
+
+        // Escape key handler
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                cleanupModals();
+            }
+        });
+
+        // Initial cleanup on page load
+        cleanupModals();
     });
 </script>
 

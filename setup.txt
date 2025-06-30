@@ -1,0 +1,42 @@
+================================================================================
+                    LEAVE APPLICATION SYSTEM - SETUP GUIDE
+================================================================================
+
+📋 QUICK SETUP CHECKLIST
+========================
+
+□ PHP 7.4+ installed and configured
+□ MySQL 5.7+ installed and running
+□ Web server (Apache/Nginx) configured
+□ Database created and schema imported
+□ Configuration file updated (includes/config.php)
+□ File permissions set correctly
+□ Default admin password changed
+□ System tested with sample data
+
+================================================================================
+                              CORE FILES OVERVIEW
+================================================================================
+
+ESSENTIAL FILES:
+- index.php          → Landing page
+- login.php          → Authentication system
+- logout.php         → Session cleanup
+- register.php       → User registration (optional)
+- includes/config.php → Database configuration
+- includes/functions.php → Core system functions
+
+ADMIN FILES:
+- admin/dashboard.php     → Admin overview
+- admin/manage_users.php  → User management
+- admin/all_requests.php  → Leave request management
+- admin/profile.php       → Admin profile
+
+USER FILES:
+- user/dashboard.php      → User overview
+- user/apply_leave.php    → Leave application
+- user/my_requests.php    → Request tracking
+- user/profile.php        → User profile
+
+Note: No additional setup files needed - the system is ready to use after
+following the installation steps in TUTORIAL.md
