@@ -2,85 +2,65 @@
 global $pdo;
 require_once 'includes/functions.php';
 
+// Check if user is already logged in
 if (isLoggedIn()) {
+    // Redirect based on user role
     if (isAdmin()) {
-        redirectWithMessage('admin/dashboard.php', 'Welcome back, Admin!', 'info');
+        header("Location: admin/dashboard.php");
     } else {
-        redirectWithMessage('user/dashboard.php', 'Welcome back!', 'info');
+        header("Location: user/dashboard.php");
     }
+    exit();
 }
 
+$error = '';
+
+// Process login form
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = $_POST['email'] ?? '';
+    $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
-    $remember = isset($_POST['remember']);
 
+    // Validate input
     if (empty($email) || empty($password)) {
-        $error = "Please enter both email and password";
+        $error = "Please enter both email and password.";
     } else {
-        if ($email === 'admin@gmail.com' && $password === 'admin@12345') {
-            $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
-            $stmt->execute(['admin@gmail.com']);
-            $admin = $stmt->fetch(PDO::FETCH_ASSOC);
+        try {
+            // Check if user exists
+            $stmt = $pdo->prepare("SELECT id, name, email, password, role FROM users WHERE email = ?");
+            $stmt->execute([$email]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-            if (!$admin) {
-                $hashedPassword = password_hash('admin@12345', PASSWORD_DEFAULT);
-                $stmt = $pdo->prepare("INSERT INTO users (name, email, password, role, created_at) VALUES (?, ?, ?, ?, ?)");
-                $stmt->execute(['admin', 'admin@gmail.com', $hashedPassword, 'admin', getCurrentDateTime()]);
-                $adminId = $pdo->lastInsertId();
-
-                $_SESSION['user_id'] = $adminId;
-                $_SESSION['user_name'] = 'admin';
-                $_SESSION['user_email'] = 'admin@gmail.com';
-                $_SESSION['user_role'] = 'admin';
-
-                updateLastLogin($adminId);
-                logActivity('Login', 'Admin account created and logged in successfully');
-
-                redirectWithMessage('admin/dashboard.php', 'Welcome! Admin account has been created.', 'success');
-            } else {
-                if ($admin['role'] !== 'admin') {
-                    $stmt = $pdo->prepare("UPDATE users SET role = 'admin' WHERE email = ?");
-                    $stmt->execute(['admin@gmail.com']);
+            if ($user && password_verify($password, $user['password'])) {
+                // If the special admin email is used but doesn't have admin role, update it
+                if ($user['email'] === 'admin@gmail.com' && $user['role'] !== 'admin') {
+                    $updateStmt = $pdo->prepare("UPDATE users SET role = 'admin' WHERE id = ?");
+                    $updateStmt->execute([$user['id']]);
+                    $user['role'] = 'admin';
+                    logActivity('System', 'Default admin privileges restored for user ID: ' . $user['id']);
                 }
 
-                $_SESSION['user_id'] = $admin['id'];
-                $_SESSION['user_name'] = $admin['name'];
-                $_SESSION['user_email'] = $admin['email'];
-                $_SESSION['user_role'] = 'admin';
+                // Set session variables
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['user_name'] = $user['name'];
+                $_SESSION['user_email'] = $user['email'];
+                $_SESSION['user_role'] = $user['role'];
 
-                updateLastLogin($admin['id']);
-                logActivity('Login', 'Admin logged in successfully');
+                // Log the login activity
+                logActivity('User Login', 'User logged in successfully');
 
-                redirectWithMessage('admin/dashboard.php', 'Welcome, Administrator!', 'success');
-            }
-        } else {
-            try {
-                $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
-                $stmt->execute([$email]);
-                $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-                if ($user && password_verify($password, $user['password'])) {
-                    $_SESSION['user_id'] = $user['id'];
-                    $_SESSION['user_name'] = $user['name'];
-                    $_SESSION['user_email'] = $user['email'];
-                    $_SESSION['user_role'] = $user['role'];
-
-                    updateLastLogin($user['id']);
-
-                    logActivity('Login', 'User logged in successfully');
-
-                    if ($user['role'] === 'admin') {
-                        redirectWithMessage('admin/dashboard.php', 'Welcome, Admin!', 'success');
-                    } else {
-                        redirectWithMessage('user/dashboard.php', 'Welcome to the Leave Management System!', 'success');
-                    }
+                // Redirect based on user role
+                if ($user['role'] === 'admin') {
+                    redirectWithMessage('admin/dashboard.php', 'Welcome back, ' . $user['name'] . '!', 'success');
                 } else {
-                    $error = "Invalid email or password";
+                    redirectWithMessage('user/dashboard.php', 'Welcome back, ' . $user['name'] . '!', 'success');
                 }
-            } catch (PDOException $e) {
-                $error = "Database error: " . $e->getMessage();
+            } else {
+                $error = "Invalid email or password.";
             }
+        } catch (PDOException $e) {
+            $error = "Database error: " . $e->getMessage();
+            // Log the error for debugging
+            error_log("Login error: " . $e->getMessage());
         }
     }
 }
@@ -97,134 +77,149 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="assets/css/style.css">
     <style>
         body {
-            background-image: url('assets/img/bg.jpg');
+            background: url('assets/img/bg.jpg') no-repeat center center fixed;
             background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             height: 100vh;
+            margin: 0;
+            padding: 20px;
         }
         .login-container {
-            background-color: rgba(255, 255, 255, 0.9);
-            border-radius: 10px;
+            max-width: 400px;
+            width: 100%;
             padding: 30px;
-            margin-top: 100px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.18);
         }
-        .login-footer {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background-color: rgba(0,0,0,0.7);
-            color: white;
-            padding: 10px;
+        .system-logo {
             text-align: center;
+            margin-bottom: 25px;
         }
-        /* Green theme */
-        .btn-primary {
-            background-color: #2e8b57;
-            border-color: #2e8b57;
+        .system-logo i {
+            font-size: 3rem;
+            color: #28a745;
         }
-        .btn-primary:hover {
-            background-color: #3cb371;
-            border-color: #3cb371;
+        .login-title {
+            text-align: center;
+            margin-bottom: 25px;
+            color: #343a40;
+            font-weight: 500;
         }
-        .text-primary {
-            color: #2e8b57 !important;
+        .form-control {
+            background-color: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            padding: 12px;
+        }
+        .form-control:focus {
+            box-shadow: none;
+            border-color: #28a745;
+            background-color: rgba(255, 255, 255, 0.95);
+        }
+        .input-group-text {
+            background-color: rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+        .login-btn {
+            background-color: #28a745;
+            border-color: #28a745;
+            padding: 10px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        .login-btn:hover {
+            background-color: #218838;
+            border-color: #1e7e34;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .alert {
+            background-color: rgba(255, 255, 255, 0.9);
+            border-left: 4px solid #dc3545;
         }
         a {
-            color: #2e8b57;
+            color: #28a745;
+            text-decoration: none;
+            transition: all 0.2s;
         }
         a:hover {
-            color: #3cb371;
+            color: #218838;
+            text-decoration: underline;
         }
-
-        /* Date display styling */
-        .date-display {
-            text-align: center;
-            margin-top: 15px;
-            font-size: 0.9rem;
-        }
-        .date-badge {
-            background-color: #2e8b57;
-            color: white;
-            padding: 5px 15px;
-            border-radius: 20px;
-            display: inline-block;
+        @media (max-width: 576px) {
+            .login-container {
+                padding: 20px;
+            }
         }
     </style>
 </head>
 <body>
-<div class="container">
-    <div class="row justify-content-center">
-        <div class="col-md-5">
-            <div class="login-container">
-                <h2 class="text-center mb-4">
-                    <i class="fas fa-calendar-check me-2"></i>
-                    Leave Management System
-                </h2>
+<div class="login-container">
+    <div class="system-logo">
+        <i class="fas fa-calendar-check"></i>
+    </div>
+    <h2 class="login-title">Leave Management System</h2>
 
-                <?php if (isset($error)): ?>
-                    <div class="alert alert-danger"><?php echo $error; ?></div>
-                <?php endif; ?>
+    <?php if (!empty($error)): ?>
+        <div class="alert alert-danger">
+            <i class="fas fa-exclamation-circle me-2"></i><?php echo $error; ?>
+        </div>
+    <?php endif; ?>
 
-                <form method="POST" action="login.php">
-                    <div class="mb-3">
-                        <label for="email" class="form-label">Email Address</label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="fas fa-envelope"></i></span>
-                            <input type="email" class="form-control" id="email" name="email" value="<?php echo $_POST['email'] ?? ''; ?>" required>
-                        </div>
-                    </div>
+    <?php displayMessage(); ?>
 
-                    <div class="mb-3">
-                        <label for="password" class="form-label">Password</label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="fas fa-lock"></i></span>
-                            <input type="password" class="form-control" id="password" name="password" required>
-                        </div>
-                    </div>
-
-                    <div class="mb-3 form-check">
-                        <input type="checkbox" class="form-check-input" id="remember" name="remember">
-                        <label class="form-check-label" for="remember">Remember me</label>
-                    </div>
-
-                    <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-sign-in-alt me-2"></i> Login
-                        </button>
-                    </div>
-                </form>
-
-                <hr>
-
-                <div class="text-center">
-                    <p>Don't have an account? <a href="register.php">Register</a></p>
-                </div>
-
-                <div class="date-display">
-                        <span class="date-badge">
-                            <i class="fas fa-calendar-alt me-1"></i>
-                            <?php echo date('Y-m-d', strtotime(getCurrentDateTime())); ?>
-                        </span>
-                </div>
+    <form action="login.php" method="POST">
+        <div class="mb-3">
+            <label for="email" class="form-label">Email Address</label>
+            <div class="input-group">
+                <span class="input-group-text"><i class="fas fa-envelope"></i></span>
+                <input type="email" class="form-control" id="email" name="email" placeholder="Enter your email" required>
             </div>
         </div>
-    </div>
-</div>
-
-<div class="login-footer">
-    <div class="container">
-        <div class="row">
-            <div class="col-md-12 text-center">
-                <i class="fas fa-calendar-alt me-2"></i> Leave Management System
+        <div class="mb-4">
+            <label for="password" class="form-label">Password</label>
+            <div class="input-group">
+                <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                <input type="password" class="form-control" id="password" name="password" placeholder="Enter your password" required>
+                <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                    <i class="fas fa-eye"></i>
+                </button>
             </div>
         </div>
-    </div>
+        <button type="submit" class="btn login-btn text-white w-100 mb-3">
+            <i class="fas fa-sign-in-alt me-2"></i>Login
+        </button>
+        <div class="text-center">
+            <p class="mb-2">Don't have an account? <a href="register.php">Register</a></p>
+            <p class="mb-0 small"><a href="#" id="forgotPasswordLink">Forgot Password?</a></p>
+        </div>
+    </form>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="assets/js/scripts.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Toggle password visibility
+        const togglePassword = document.getElementById('togglePassword');
+        const password = document.getElementById('password');
+
+        togglePassword.addEventListener('click', function() {
+            const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
+            password.setAttribute('type', type);
+            this.querySelector('i').classList.toggle('fa-eye');
+            this.querySelector('i').classList.toggle('fa-eye-slash');
+        });
+
+        document.getElementById('forgotPasswordLink').addEventListener('click', function(e) {
+            e.preventDefault();
+            alert('Please contact your system administrator to reset your password.');
+        });
+    });
+</script>
 </body>
 </html>

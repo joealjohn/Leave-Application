@@ -1,7 +1,7 @@
 -- Create the database if it doesn't exist
-CREATE DATABASE IF NOT EXISTS mmnss_leave_management;
+CREATE DATABASE IF NOT EXISTS leave_management;
 
-USE mmnss_leave_management;
+USE leave_management;
 
 -- Create the users table
 CREATE TABLE IF NOT EXISTS users (

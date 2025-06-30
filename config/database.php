@@ -1,6 +1,6 @@
 <?php
 $host = 'localhost';
-$dbname = 'mmnss_leave_management';
+$dbname = 'leave_management';
 $username = 'root';
 $password = '';
 ?>
