@@ -1,8 +1,7 @@
-/* Global styles */
 body {
     position: relative;
     min-height: 100vh;
-    padding-bottom: 70px; /* Space for footer */
+    padding-bottom: 70px;
     margin: 0;
     background-color: #f8f9fa;
 }
@@ -26,16 +25,15 @@ body::before {
 .container-fluid {
     position: relative;
     z-index: 1;
-    padding-bottom: 20px; /* Space for content and footer */
+    padding-bottom: 20px;
 }
 
-/* Content wrapper */
 .content-wrapper {
-    min-height: calc(100vh - 140px); /* Viewport height minus header and footer */
-    padding-bottom: 80px; /* Ensure space for footer */
+    min-height: calc(100vh - 140px);
+    padding-bottom: 80px;
 }
 
-/* MODAL FIXES - Critical for preventing overlay issues */
+
 .modal-backdrop {
     z-index: 1040 !important;
 }
@@ -48,12 +46,10 @@ body::before {
     overflow: hidden !important;
 }
 
-/* Remove any leftover modal backdrops */
 body.modal-open .modal-backdrop.show {
     opacity: 0.5;
 }
 
-/* Ensure modal close buttons work properly */
 .btn-close, .btn-close-white {
     background: transparent !important;
     border: none !important;
@@ -71,13 +67,11 @@ body.modal-open .modal-backdrop.show {
     opacity: 0.75 !important;
 }
 
-/* Button focus fixes */
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .btn-link.nav-link:active:focus, .btn.focus, .btn:active.focus, .btn-link.nav-link.focus, .btn-link.nav-link:active.focus {
     outline: 0 !important;
     box-shadow: none !important;
 }
 
-/* Date header styling */
 .date-header {
     display: inline-flex;
     align-items: center;
@@ -99,7 +93,6 @@ body.modal-open .modal-backdrop.show {
     font-size: 0.9rem;
 }
 
-/* Card styles with enhanced visuals */
 .card {
     background-color: rgba(255, 255, 255, 0.95);
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
@@ -120,7 +113,6 @@ body.modal-open .modal-backdrop.show {
     box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15);
 }
 
-/* Table styles */
 .table {
     background-color: rgba(255, 255, 255, 0.97);
     margin-bottom: 0;
@@ -135,7 +127,6 @@ body.modal-open .modal-backdrop.show {
     background-color: rgba(240, 248, 255, 0.7);
 }
 
-/* Dashboard card hover effect */
 .hover-effect {
     transform: translateY(0);
     transition: transform 0.3s ease, box-shadow 0.3s ease;
@@ -146,7 +137,6 @@ body.modal-open .modal-backdrop.show {
     box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
 }
 
-/* Filter section styling */
 .filters {
     background-color: rgba(248, 249, 250, 0.9);
     padding: 15px;
@@ -156,7 +146,6 @@ body.modal-open .modal-backdrop.show {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
-/* Button styling */
 .btn {
     border-radius: 5px;
     font-weight: 500;
@@ -178,7 +167,6 @@ body.modal-open .modal-backdrop.show {
     transition: transform 0.2s ease;
 }
 
-/* Badge styling */
 .badge {
     padding: 6px 10px;
     font-weight: 500;
@@ -195,7 +183,6 @@ body.modal-open .modal-backdrop.show {
     margin-top: 2px;
 }
 
-/* Form control styling */
 .form-control, .form-select {
     border-radius: 5px;
     border: 1px solid #ced4da;
@@ -212,7 +199,6 @@ body.modal-open .modal-backdrop.show {
     border-color: #ced4da;
 }
 
-/* Date picker styling */
 .datepicker {
     background-color: #fff;
     cursor: pointer;
@@ -224,13 +210,11 @@ body.modal-open .modal-backdrop.show {
     border: none;
 }
 
-/* Alert styling */
 .alert {
     border-radius: 5px;
     border: none;
 }
 
-/* Navbar styling */
 .navbar {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     position: sticky;
@@ -257,7 +241,6 @@ body.modal-open .modal-backdrop.show {
     transition: background-color 0.2s;
 }
 
-/* Footer styling */
 footer {
     background-color: rgba(52, 58, 64, 0.9);
     color: white;
@@ -272,7 +255,6 @@ footer {
     border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* CRITICAL FIX: Prevent duplicate navbars */
 .content-wrapper .navbar,
 footer .navbar,
 .content-wrapper nav,
@@ -286,7 +268,6 @@ footer .navbar-nav {
     display: none !important;
 }
 
-/* Footer content spacing */
 footer .d-flex {
     display: flex;
     justify-content: center;
@@ -301,7 +282,6 @@ footer .footer-logout {
     white-space: nowrap;
 }
 
-/* Login footer */
 .login-footer {
     background-color: rgba(52, 58, 64, 0.9);
     color: white;
@@ -313,7 +293,6 @@ footer .footer-logout {
     text-align: center;
 }
 
-/* Header date display */
 .header-date {
     display: inline-block;
     font-size: 0.9rem;
@@ -329,7 +308,6 @@ footer .footer-logout {
     opacity: 0.85;
 }
 
-/* Logout button styling */
 .logout-btn {
     color: white !important;
     border-color: rgba(255, 255, 255, 0.5);
@@ -349,13 +327,11 @@ footer .footer-logout {
     padding: 3px 8px;
 }
 
-/* Back button container */
 .back-btn-container {
     margin-bottom: 80px;
     clear: both;
 }
 
-/* Login and register page styling */
 .login-container, .register-container {
     background-color: rgba(255, 255, 255, 0.95);
     border-radius: 10px;
@@ -374,12 +350,10 @@ footer .footer-logout {
     margin-top: 15px;
 }
 
-/* Remove the old date-time banner */
 .date-time-banner {
     display: none !important;
 }
 
-/* Recent leaves styling */
 .list-group-item-action {
     transition: all 0.2s;
 }
@@ -388,10 +362,9 @@ footer .footer-logout {
     background-color: rgba(40, 167, 69, 0.05);
 }
 
-/* Responsive adjustments */
 @media (max-width: 768px) {
     body {
-        padding-bottom: 90px; /* More space on mobile */
+        padding-bottom: 90px;
     }
 
     .navbar-nav {
@@ -427,11 +400,10 @@ footer .footer-logout {
     }
 
     .back-btn-container {
-        margin-bottom: 100px; /* More space on mobile */
+        margin-bottom: 100px;
     }
 }
 
-/* Apply specific styles for tablets */
 @media (min-width: 768px) and (max-width: 991px) {
     .date-header,
     .header-date {
@@ -449,7 +421,6 @@ footer .footer-logout {
     }
 }
 
-/* Print styles - hide unnecessary elements when printing */
 @media print {
     .navbar, footer, .btn, .logout-btn {
         display: none !important;
@@ -475,7 +446,6 @@ footer .footer-logout {
     }
 }
 
-/* Custom scrollbar */
 ::-webkit-scrollbar {
     width: 10px;
 }
@@ -493,7 +463,6 @@ footer .footer-logout {
     background: #555;
 }
 
-/* Additional utility classes */
 .text-truncate-2 {
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -506,7 +475,6 @@ footer .footer-logout {
     border-style: dashed !important;
 }
 
-/* Enhancement for modals */
 .modal-content {
     border: none;
     border-radius: 10px;
@@ -523,7 +491,6 @@ footer .footer-logout {
     border-bottom-right-radius: 10px;
 }
 
-/* Status indicators */
 .status-indicator {
     width: 10px;
     height: 10px;
@@ -544,7 +511,6 @@ footer .footer-logout {
     background-color: #dc3545;
 }
 
-/* Dashboard welcome message */
 .welcome-banner {
     background-color: rgba(40, 167, 69, 0.1);
     border-left: 5px solid #28a745;

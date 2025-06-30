@@ -2,18 +2,16 @@
 global $pdo;
 require_once '../includes/functions.php';
 
-// Check if user is logged in and is admin
 if (!isLoggedIn() || !isAdmin()) {
     redirectWithMessage('../login.php', 'You must log in as admin to access this page', 'warning');
 }
 
-// Initialize variables
-$startDate = $_GET['start_date'] ?? date('Y-m-01'); // First day of current month
-$endDate = $_GET['end_date'] ?? date('Y-m-t');     // Last day of current month
-$filterType = $_GET['type'] ?? 'all';
+$startDate = $_GET['start_date'] ?? date('Y-m-01');
+$endDate = $_GET['end_date'] ?? date('Y-m-t');
+$filterType = $_GE['type'] ?? 'all';
 $filterStatus = $_GET['status'] ?? 'all';
 
-// Validate dates
+
 if (!isValidDate($startDate)) {
     $startDate = date('Y-m-01');
 }
@@ -21,31 +19,26 @@ if (!isValidDate($endDate)) {
     $endDate = date('Y-m-t');
 }
 
-// Build query conditions
-$conditions = ['1=1']; // Always true condition to start
+
+$conditions = ['1=1'];
 $params = [];
 
-// Add date range condition
 $conditions[] = "lr.start_date >= ? AND lr.end_date <= ?";
 $params[] = $startDate;
 $params[] = $endDate;
 
-// Add leave type filter
 if ($filterType !== 'all') {
     $conditions[] = "lr.leave_type = ?";
     $params[] = $filterType;
 }
 
-// Add status filter
 if ($filterStatus !== 'all') {
     $conditions[] = "lr.status = ?";
     $params[] = $filterStatus;
 }
 
-// Build the WHERE clause
 $whereClause = implode(' AND ', $conditions);
 
-// Get leave requests for the report
 try {
     $stmt = $pdo->prepare("
         SELECT lr.*, u.name as user_name, u.email as user_email
@@ -57,7 +50,6 @@ try {
     $stmt->execute($params);
     $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Calculate statistics
     $totalRequests = count($requests);
     $approvedRequests = 0;
     $pendingRequests = 0;
@@ -317,7 +309,6 @@ try {
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    // Initialize tooltips
     document.addEventListener('DOMContentLoaded', function() {
         var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
         tooltipTriggerList.map(function (tooltipTriggerEl) {
@@ -325,14 +316,12 @@ try {
         });
     });
 
-    // Export report to CSV
     function exportReport() {
         const table = document.getElementById("report-table");
         if (!table) return;
 
         let csvContent = "data:text/csv;charset=utf-8,";
 
-        // Get headers
         const headers = [];
         const headerCells = table.querySelectorAll("thead th");
         headerCells.forEach(cell => {
@@ -340,19 +329,16 @@ try {
         });
         csvContent += headers.join(",") + "\r\n";
 
-        // Get rows
         const rows = table.querySelectorAll("tbody tr");
         rows.forEach(row => {
             const rowData = [];
             const cells = row.querySelectorAll("td");
             cells.forEach((cell, index) => {
-                // Special handling for status badge
-                if (index === 6) { // Status column
+                if (index === 6) {
                     const badge = cell.querySelector(".badge");
                     rowData.push(badge ? badge.textContent.trim() : "");
                 }
-                // Special handling for reason button
-                else if (index === 8) { // Reason column
+                else if (index === 8) {
                     const button = cell.querySelector("button");
                     rowData.push(button ? button.getAttribute("title") : "");
                 } else {
@@ -362,7 +348,6 @@ try {
             csvContent += rowData.join(",") + "\r\n";
         });
 
-        // Create download link
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);

@@ -5,16 +5,13 @@
 
 document.addEventListener('DOMContentLoaded', function() {
 
-    // CRITICAL: Fix modal backdrop issues
     fixModalBackdropIssues();
 
-    // Initialize tooltips
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
     var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl)
     });
 
-    // Auto-dismiss alerts after 5 seconds
     setTimeout(function() {
         var alerts = document.querySelectorAll('.alert.alert-dismissible');
         alerts.forEach(function(alert) {
@@ -23,7 +20,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }, 5000);
 
-    // Date range validation for leave requests
     const startDateInput = document.getElementById('start_date');
     const endDateInput = document.getElementById('end_date');
 
@@ -38,7 +34,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (startDate > endDate) {
                 endDateInput.setCustomValidity('End date cannot be before start date');
 
-                // Show validation message
                 let errorMessage = document.getElementById('date-error-message');
                 if (!errorMessage) {
                     errorMessage = document.createElement('div');
@@ -50,7 +45,6 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 endDateInput.setCustomValidity('');
 
-                // Remove error message if it exists
                 const errorMessage = document.getElementById('date-error-message');
                 if (errorMessage) {
                     errorMessage.remove();
@@ -59,7 +53,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Confirm delete actions
     const deleteButtons = document.querySelectorAll('.delete-confirm');
     deleteButtons.forEach(function(button) {
         button.addEventListener('click', function(e) {
@@ -69,7 +62,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Print functionality
     const printButtons = document.querySelectorAll('.btn-print');
     printButtons.forEach(function(button) {
         button.addEventListener('click', function() {
@@ -77,7 +69,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Leave days calculator
     function calculateLeaveDays() {
         const startDateInput = document.getElementById('start_date');
         const endDateInput = document.getElementById('end_date');
@@ -89,7 +80,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 const endDate = new Date(endDateInput.value);
 
                 if (startDate <= endDate) {
-                    // Calculate business days (excluding weekends)
                     let days = 0;
                     let currentDate = new Date(startDate);
 
@@ -107,16 +97,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Attach calculator to date inputs
     if (document.getElementById('start_date') && document.getElementById('end_date') && document.getElementById('leave_days_output')) {
         document.getElementById('start_date').addEventListener('change', calculateLeaveDays);
         document.getElementById('end_date').addEventListener('change', calculateLeaveDays);
 
-        // Initial calculation if values are present
         calculateLeaveDays();
     }
 
-    // Password strength indicator
+
     const passwordInput = document.getElementById('password');
     const strengthIndicator = document.getElementById('password-strength');
 
@@ -168,13 +156,11 @@ document.addEventListener('DOMContentLoaded', function() {
  * This prevents the black overlay problem
  */
 function fixModalBackdropIssues() {
-    // Remove any orphaned modal backdrops
     const orphanedBackdrops = document.querySelectorAll('.modal-backdrop');
     orphanedBackdrops.forEach(backdrop => {
         backdrop.remove();
     });
 
-    // Remove modal-open class from body if no modals are actually open
     const openModals = document.querySelectorAll('.modal.show');
     if (openModals.length === 0) {
         document.body.classList.remove('modal-open');
@@ -182,26 +168,20 @@ function fixModalBackdropIssues() {
         document.body.style.paddingRight = '';
     }
 
-    // Add event listeners to all modals to properly clean up
     const allModals = document.querySelectorAll('.modal');
     allModals.forEach(modal => {
-        // Clean up when modal is hidden
         modal.addEventListener('hidden.bs.modal', function() {
-            // Remove any leftover backdrops
             const backdrops = document.querySelectorAll('.modal-backdrop');
             backdrops.forEach(backdrop => {
                 backdrop.remove();
             });
 
-            // Reset body classes and styles
             document.body.classList.remove('modal-open');
             document.body.style.overflow = '';
             document.body.style.paddingRight = '';
         });
 
-        // Ensure proper cleanup when modal is being hidden
         modal.addEventListener('hide.bs.modal', function() {
-            // Force remove modal-open class after a short delay
             setTimeout(() => {
                 if (document.querySelectorAll('.modal.show').length === 0) {
                     document.body.classList.remove('modal-open');
@@ -212,10 +192,9 @@ function fixModalBackdropIssues() {
         });
     });
 
-    // Add emergency cleanup on click outside modals
     document.addEventListener('click', function(e) {
         if (e.target.classList.contains('modal-backdrop')) {
-            // Force close all modals and clean up
+
             const openModals = document.querySelectorAll('.modal.show');
             openModals.forEach(modal => {
                 const bsModal = bootstrap.Modal.getInstance(modal);
@@ -224,7 +203,6 @@ function fixModalBackdropIssues() {
                 }
             });
 
-            // Emergency cleanup
             setTimeout(() => {
                 const backdrops = document.querySelectorAll('.modal-backdrop');
                 backdrops.forEach(backdrop => backdrop.remove());
@@ -235,7 +213,6 @@ function fixModalBackdropIssues() {
         }
     });
 
-    // Emergency cleanup function - can be called manually
     window.emergencyModalCleanup = function() {
         const backdrops = document.querySelectorAll('.modal-backdrop');
         backdrops.forEach(backdrop => backdrop.remove());
@@ -251,7 +228,6 @@ function fixModalBackdropIssues() {
     };
 }
 
-// Additional helper functions
 window.closeAllModals = function() {
     const modals = document.querySelectorAll('.modal');
     modals.forEach(modal => {
@@ -262,7 +238,6 @@ window.closeAllModals = function() {
     });
 };
 
-// Keyboard shortcut for emergency cleanup (Ctrl+Shift+Escape)
 document.addEventListener('keydown', function(e) {
     if (e.ctrlKey && e.shiftKey && e.key === 'Escape') {
         window.emergencyModalCleanup();

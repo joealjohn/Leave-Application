@@ -2,12 +2,10 @@
 global $pdo;
 require_once '../includes/functions.php';
 
-// Check if user is logged in
 if (!isLoggedIn()) {
     redirectWithMessage('../login.php', 'You must log in to access this page', 'warning');
 }
 
-// Check if ID is provided
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     redirectWithMessage('my_requests.php', 'Invalid request ID', 'warning');
 }
@@ -15,12 +13,10 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
 $requestId = $_GET['id'];
 $userId = $_SESSION['user_id'];
 
-// Get leave request details
 $stmt = $pdo->prepare("SELECT * FROM leave_requests WHERE id = ? AND user_id = ?");
 $stmt->execute([$requestId, $userId]);
 $request = $stmt->fetch(PDO::FETCH_ASSOC);
 
-// Check if request exists and is pending
 if (!$request) {
     redirectWithMessage('my_requests.php', 'Leave request not found', 'warning');
 }
@@ -29,14 +25,12 @@ if ($request['status'] !== 'pending') {
     redirectWithMessage('view_request.php?id=' . $requestId, 'You can only edit pending requests', 'warning');
 }
 
-// Process form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $leaveType = $_POST['leave_type'] ?? '';
     $startDate = $_POST['start_date'] ?? '';
     $endDate = $_POST['end_date'] ?? '';
     $reason = $_POST['reason'] ?? '';
 
-    // Validate inputs
     $errors = [];
 
     if (empty($leaveType)) {
@@ -59,7 +53,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = "Reason for leave is required";
     }
 
-    // If no errors, update in database
     if (empty($errors)) {
         try {
             $stmt = $pdo->prepare("UPDATE leave_requests 
@@ -74,7 +67,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $userId
             ]);
 
-            // Log activity
             $days = calculateLeaveDays($startDate, $endDate);
             logActivity(
                 'Leave Request Updated',
@@ -220,7 +212,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="../assets/js/scripts.js"></script>
 <script>
-    // Add client-side validation
     document.addEventListener('DOMContentLoaded', function() {
         const startDateInput = document.getElementById('start_date');
         const endDateInput = document.getElementById('end_date');

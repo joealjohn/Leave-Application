@@ -18,7 +18,6 @@ function getPDO() {
     }
 }
 
-// Initialize database connection
 $pdo = getPDO();
 
 /**
@@ -28,10 +27,8 @@ $pdo = getPDO();
  */
 function formatDateTime($dateString = null) {
     if ($dateString === null) {
-        // Return fixed date and time for consistency
         return getCurrentDateTime();
     } else {
-        // Convert specified time to UTC
         $date = new DateTime($dateString);
         $date->setTimezone(new DateTimeZone('UTC'));
         return $date->format('Y-m-d H:i:s');
@@ -43,7 +40,6 @@ function formatDateTime($dateString = null) {
  * @return string Current date and time in UTC
  */
 function getCurrentDateTime() {
-    // Fixed date and time for the application
     return '2025-06-30 13:30:07';
 }
 
@@ -155,7 +151,6 @@ function isMainAdmin() {
 function addUser($name, $email, $password, $role = 'user') {
     global $pdo;
 
-    // Validate inputs
     $errors = [];
 
     if (empty($name)) {
@@ -178,7 +173,7 @@ function addUser($name, $email, $password, $role = 'user') {
         $errors[] = "Invalid role specified";
     }
 
-    // Check if email already exists
+
     try {
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE email = ?");
         $stmt->execute([$email]);
@@ -189,7 +184,6 @@ function addUser($name, $email, $password, $role = 'user') {
         return "Database error: " . $e->getMessage();
     }
 
-    // Check if username already exists
     try {
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE name = ?");
         $stmt->execute([$name]);
@@ -200,21 +194,17 @@ function addUser($name, $email, $password, $role = 'user') {
         return "Database error: " . $e->getMessage();
     }
 
-    // Return errors if any
     if (!empty($errors)) {
         return implode("<br>", $errors);
     }
 
-    // Hash the password
     $hashedPassword = generatePasswordHash($password);
 
-    // Insert the new user
     try {
         $stmt = $pdo->prepare("INSERT INTO users (name, email, password, role, created_at) VALUES (?, ?, ?, ?, ?)");
         $result = $stmt->execute([$name, $email, $hashedPassword, $role, getCurrentDateTime()]);
 
         if ($result) {
-            // Log the activity
             logActivity('User Creation', "Added new user: $name ($email) with role: $role");
             return true;
         } else {
@@ -259,7 +249,6 @@ function deleteUser($userId) {
     global $pdo;
 
     try {
-        // Get user details for logging
         $stmt = $pdo->prepare("SELECT name, email FROM users WHERE id = ?");
         $stmt->execute([$userId]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -268,12 +257,10 @@ function deleteUser($userId) {
             return "User not found";
         }
 
-        // Prevent deletion of main admin
         if ($user['email'] === 'admin@gmail.com') {
             return "Cannot delete the main administrator account";
         }
 
-        // Delete the user
         $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
         $result = $stmt->execute([$userId]);
 
@@ -310,7 +297,6 @@ function redirectWithMessage($location, $message, $type = 'info') {
 function updateLastLogin($userId) {
     global $pdo;
 
-    // Check if last_login column exists, create if not
     try {
         $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'last_login'");
         if ($stmt->rowCount() === 0) {
@@ -372,13 +358,12 @@ function displayMessage() {
 function calculateLeaveDays($start_date, $end_date) {
     $start = new DateTime($start_date);
     $end = new DateTime($end_date);
-    $end->modify('+1 day'); // Include the end date
+    $end->modify('+1 day');
 
     $days = 0;
     $period = new DatePeriod($start, new DateInterval('P1D'), $end);
 
     foreach ($period as $day) {
-        // Skip weekends (6=Saturday, 7=Sunday)
         $dayOfWeek = $day->format('N');
         if ($dayOfWeek < 6) {
             $days++;
@@ -459,10 +444,8 @@ function displayInfoCard($title, $value, $icon, $color = 'success') {
 function logActivity($action, $details, $user_id = null) {
     global $pdo;
 
-    // Create logs table if it doesn't exist
     createLogsTableIfNotExists();
 
-    // Use current user if not specified
     if ($user_id === null && isset($_SESSION['user_id'])) {
         $user_id = $_SESSION['user_id'];
     }
@@ -477,7 +460,6 @@ function logActivity($action, $details, $user_id = null) {
             getCurrentDateTime()
         ]);
     } catch (PDOException $e) {
-        // Silent logging failure - don't disrupt the user experience
         error_log("Failed to log activity: " . $e->getMessage());
     }
 }

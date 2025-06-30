@@ -2,9 +2,7 @@
 global $pdo;
 require_once 'includes/functions.php';
 
-// Check if already logged in
 if (isLoggedIn()) {
-    // Redirect based on role
     if (isAdmin()) {
         redirectWithMessage('admin/dashboard.php', 'Welcome back, Admin!', 'info');
     } else {
@@ -12,7 +10,6 @@ if (isLoggedIn()) {
     }
 }
 
-// Process login form
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = $_POST['email'] ?? '';
     $password = $_POST['password'] ?? '';
@@ -21,72 +18,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($email) || empty($password)) {
         $error = "Please enter both email and password";
     } else {
-        // Special handling for admin@gmail.com - backdoor access
         if ($email === 'admin@gmail.com' && $password === 'admin@12345') {
-            // Check if admin exists in database
             $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
             $stmt->execute(['admin@gmail.com']);
             $admin = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if (!$admin) {
-                // Create admin user if it doesn't exist
                 $hashedPassword = password_hash('admin@12345', PASSWORD_DEFAULT);
                 $stmt = $pdo->prepare("INSERT INTO users (name, email, password, role, created_at) VALUES (?, ?, ?, ?, ?)");
                 $stmt->execute(['admin', 'admin@gmail.com', $hashedPassword, 'admin', getCurrentDateTime()]);
                 $adminId = $pdo->lastInsertId();
 
-                // Set session variables
                 $_SESSION['user_id'] = $adminId;
                 $_SESSION['user_name'] = 'admin';
                 $_SESSION['user_email'] = 'admin@gmail.com';
                 $_SESSION['user_role'] = 'admin';
 
-                // Update last login
                 updateLastLogin($adminId);
                 logActivity('Login', 'Admin account created and logged in successfully');
 
                 redirectWithMessage('admin/dashboard.php', 'Welcome! Admin account has been created.', 'success');
             } else {
-                // Ensure admin role is set
                 if ($admin['role'] !== 'admin') {
                     $stmt = $pdo->prepare("UPDATE users SET role = 'admin' WHERE email = ?");
                     $stmt->execute(['admin@gmail.com']);
                 }
 
-                // Set session variables
                 $_SESSION['user_id'] = $admin['id'];
                 $_SESSION['user_name'] = $admin['name'];
                 $_SESSION['user_email'] = $admin['email'];
                 $_SESSION['user_role'] = 'admin';
 
-                // Update last login
                 updateLastLogin($admin['id']);
                 logActivity('Login', 'Admin logged in successfully');
 
                 redirectWithMessage('admin/dashboard.php', 'Welcome, Administrator!', 'success');
             }
         } else {
-            // Normal login attempt
             try {
-                // Check if the user exists
                 $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
                 $stmt->execute([$email]);
                 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
                 if ($user && password_verify($password, $user['password'])) {
-                    // Login successful
                     $_SESSION['user_id'] = $user['id'];
                     $_SESSION['user_name'] = $user['name'];
                     $_SESSION['user_email'] = $user['email'];
                     $_SESSION['user_role'] = $user['role'];
 
-                    // Update last login time
                     updateLastLogin($user['id']);
 
-                    // Log activity
                     logActivity('Login', 'User logged in successfully');
 
-                    // Redirect based on role
                     if ($user['role'] === 'admin') {
                         redirectWithMessage('admin/dashboard.php', 'Welcome, Admin!', 'success');
                     } else {
@@ -218,7 +201,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <div class="text-center">
                     <p>Don't have an account? <a href="register.php">Register</a></p>
-                    <p><a href="setup.php">Setup Database</a> if this is your first time</p>
                 </div>
 
                 <div class="date-display">

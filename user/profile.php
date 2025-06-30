@@ -2,7 +2,6 @@
 global $pdo;
 require_once '../includes/functions.php';
 
-// Check if user is logged in (FIXED - removed admin check)
 if (!isLoggedIn()) {
     redirectWithMessage('../login.php', 'You must log in to access this page', 'warning');
 }
@@ -10,7 +9,6 @@ if (!isLoggedIn()) {
 $userId = $_SESSION['user_id'];
 $userEmail = $_SESSION['user_email'];
 
-// Get user data
 try {
     $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
     $stmt->execute([$userId]);
@@ -23,7 +21,6 @@ try {
     $error = "Database error: " . $e->getMessage();
 }
 
-// Process form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = $_POST['name'] ?? '';
     $currentPassword = $_POST['current_password'] ?? '';
@@ -32,37 +29,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $errors = [];
 
-    // Validate name
     if (empty($name)) {
         $errors[] = "Name is required";
     }
 
-    // If current password is provided, validate password change
     if (!empty($currentPassword)) {
-        // Verify current password
         if (!password_verify($currentPassword, $user['password'])) {
             $errors[] = "Current password is incorrect";
         }
 
-        // Validate new password
         if (empty($newPassword)) {
             $errors[] = "New password is required";
         } elseif (strlen($newPassword) < 6) {
             $errors[] = "Password must be at least 6 characters";
         }
 
-        // Validate password confirmation
         if ($newPassword !== $confirmPassword) {
             $errors[] = "Passwords do not match";
         }
     }
 
-    // Protect admin@gmail.com from being changed (only if current user IS admin@gmail.com)
     if ($userEmail === 'admin@gmail.com' && $name !== 'admin') {
         $errors[] = "Cannot change admin username for the main administrator account";
     }
 
-    // Check if name already exists for another user
     if (empty($errors)) {
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE name = ? AND id != ?");
         $stmt->execute([$name, $userId]);
@@ -71,24 +61,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // If no errors, update profile
     if (empty($errors)) {
         try {
-            // Update name
             $stmt = $pdo->prepare("UPDATE users SET name = ? WHERE id = ?");
             $stmt->execute([$name, $userId]);
 
-            // Update password if provided
             if (!empty($currentPassword)) {
                 $hashedPassword = generatePasswordHash($newPassword);
                 $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
                 $stmt->execute([$hashedPassword, $userId]);
             }
 
-            // Update session data
             $_SESSION['user_name'] = $name;
 
-            // Log activity
             logActivity('Profile Update', 'User updated their profile information');
 
             redirectWithMessage('profile.php', 'Profile updated successfully', 'success');
@@ -250,7 +235,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <h6><i class="fas fa-history me-2"></i> Recent Activities</h6>
                         <div class="table-responsive">
                             <?php
-                            // Get recent activities
                             $stmt = $pdo->prepare("
                                 SELECT * FROM activity_logs 
                                 WHERE user_id = ? 
@@ -328,12 +312,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Password strength indicator
         const passwordInput = document.getElementById('new_password');
         const confirmPasswordInput = document.getElementById('confirm_password');
 
         if (passwordInput && confirmPasswordInput) {
-            // Add password matching validation
             confirmPasswordInput.addEventListener('input', function() {
                 const password = passwordInput.value;
                 const confirmPassword = this.value;

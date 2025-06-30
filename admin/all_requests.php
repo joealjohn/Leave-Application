@@ -2,85 +2,82 @@
 global $pdo;
 require_once '../includes/functions.php';
 
-// Check if user is logged in and is admin
 if (!isLoggedIn() || !isAdmin()) {
-    redirectWithMessage('../login.php', 'Access denied. Admin privileges required.', 'danger');
+    redirectWithMessage('../login.php', 'You must log in as admin to access this page', 'warning');
 }
 
-$error = '';
-$success = '';
-
-// Handle form submissions
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['action'])) {
-        $action = $_POST['action'];
-        $requestId = $_POST['request_id'] ?? null;
-        $comment = $_POST['comment'] ?? '';
-
-        if ($action === 'approve' && $requestId) {
-            try {
-                $stmt = $pdo->prepare("UPDATE leave_requests SET status = 'approved', admin_comment = ?, reviewed_by = ?, reviewed_at = ? WHERE id = ?");
-                $result = $stmt->execute([$comment, $_SESSION['user_id'], getCurrentDateTime(), $requestId]);
-
-                if ($result) {
-                    logActivity('Leave Request Approval', "Approved leave request ID: $requestId with comment: $comment");
-                    redirectWithMessage('all_requests.php', 'Leave request approved successfully!', 'success');
-                } else {
-                    $error = 'Failed to approve leave request.';
-                }
-            } catch (PDOException $e) {
-                $error = 'Database error: ' . $e->getMessage();
-            }
-        } elseif ($action === 'reject' && $requestId) {
-            try {
-                $stmt = $pdo->prepare("UPDATE leave_requests SET status = 'rejected', admin_comment = ?, reviewed_by = ?, reviewed_at = ? WHERE id = ?");
-                $result = $stmt->execute([$comment, $_SESSION['user_id'], getCurrentDateTime(), $requestId]);
-
-                if ($result) {
-                    logActivity('Leave Request Rejection', "Rejected leave request ID: $requestId with comment: $comment");
-                    redirectWithMessage('all_requests.php', 'Leave request rejected successfully!', 'success');
-                } else {
-                    $error = 'Failed to reject leave request.';
-                }
-            } catch (PDOException $e) {
-                $error = 'Database error: ' . $e->getMessage();
-            }
-        }
-    }
-}
-
-// Get filter parameters
-$status = $_GET['status'] ?? 'all';
-$type = $_GET['type'] ?? 'all';
-
-// Build WHERE clause for filtering
-$whereClause = "WHERE 1=1";
-$params = [];
-
-if ($status !== 'all') {
-    $whereClause .= " AND lr.status = ?";
-    $params[] = $status;
-}
-
-if ($type !== 'all') {
-    $whereClause .= " AND lr.leave_type = ?";
-    $params[] = $type;
-}
-
-// Fetch leave requests with user information
 try {
-    $stmt = $pdo->prepare("
-        SELECT lr.*, u.name as user_name, u.email as user_email 
-        FROM leave_requests lr 
-        JOIN users u ON lr.user_id = u.id 
-        $whereClause 
-        ORDER BY lr.applied_at DESC
-    ");
-    $stmt->execute($params);
-    $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $checkStmt = $pdo->query("SHOW COLUMNS FROM leave_requests LIKE 'admin_comment'");
+    if ($checkStmt->rowCount() == 0) {
+        $pdo->exec("ALTER TABLE leave_requests ADD COLUMN admin_comment TEXT NULL");
+        $pdo = null;
+        $pdo = getPDO();
+        logActivity('System', 'Added missing admin_comment column to leave_requests table');
+    }
 } catch (PDOException $e) {
-    $error = 'Failed to fetch leave requests: ' . $e->getMessage();
-    $requests = [];
+    error_log("Failed to check or add admin_comment column: " . $e->getMessage());
+}
+
+$filterStatus = $_GET['status'] ?? 'all';
+$filterType = $_GET['type'] ?? 'all';
+
+try {
+    $query = "SELECT lr.id, lr.user_id, lr.leave_type, lr.start_date, lr.end_date, 
+              lr.reason, lr.status, lr.applied_at";
+
+    try {
+        $checkStmt = $pdo->query("SHOW COLUMNS FROM leave_requests LIKE 'admin_comment'");
+        if ($checkStmt->rowCount() > 0) {
+            $query .= ", lr.admin_comment";
+        }
+    } catch (PDOException $e) {
+    }
+
+    $query .= ", u.name as user_name, u.email as user_email
+              FROM leave_requests lr
+              JOIN users u ON lr.user_id = u.id";
+
+    $whereConditions = [];
+    $params = [];
+
+    if ($filterStatus !== 'all') {
+        $whereConditions[] = "lr.status = ?";
+        $params[] = $filterStatus;
+    }
+
+    if ($filterType !== 'all') {
+        $whereConditions[] = "lr.leave_type = ?";
+        $params[] = $filterType;
+    }
+
+    if (!empty($whereConditions)) {
+        $query .= " WHERE " . implode(' AND ', $whereConditions);
+    }
+
+    $query .= " ORDER BY lr.applied_at DESC";
+
+    $stmt = $pdo->prepare($query);
+    $stmt->execute($params);
+    $allRequests = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+} catch (PDOException $e) {
+    $error = "Database error: " . $e->getMessage();
+}
+
+try {
+    $stmt = $pdo->query("SELECT COUNT(*) FROM leave_requests");
+    $totalRequests = $stmt->fetchColumn();
+
+    $stmt = $pdo->query("SELECT COUNT(*) FROM leave_requests WHERE status = 'pending'");
+    $pendingRequests = $stmt->fetchColumn();
+
+    $stmt = $pdo->query("SELECT COUNT(*) FROM leave_requests WHERE status = 'approved'");
+    $approvedRequests = $stmt->fetchColumn();
+
+    $stmt = $pdo->query("SELECT COUNT(*) FROM leave_requests WHERE status = 'rejected'");
+    $rejectedRequests = $stmt->fetchColumn();
+} catch (PDOException $e) {
+    $error = "Database error: " . $e->getMessage();
 }
 ?>
 
@@ -97,168 +94,208 @@ try {
 <body>
 <?php include '../includes/admin-navbar.php'; ?>
 
-<div class="container-fluid py-4">
-    <h2 class="mb-4">All Leave Requests</h2>
+<div class="content-wrapper">
+    <div class="container-fluid py-4">
+        <h2 class="mb-4">All Leave Requests</h2>
 
-    <?php displayMessage(); ?>
+        <?php displayMessage(); ?>
 
-    <?php if (isset($error)): ?>
-        <div class="alert alert-danger"><?php echo $error; ?></div>
-    <?php endif; ?>
+        <?php if (isset($error)): ?>
+            <div class="alert alert-danger"><?php echo $error; ?></div>
+        <?php endif; ?>
 
-    <!-- Status Filter Buttons -->
-    <div class="mb-4">
-        <div class="btn-group">
-            <a href="all_requests.php?status=all" class="btn <?php echo $status === 'all' ? 'btn-primary' : 'btn-outline-primary'; ?>">
-                All Requests
-            </a>
-            <a href="all_requests.php?status=pending" class="btn <?php echo $status === 'pending' ? 'btn-warning' : 'btn-outline-warning'; ?>">
-                Pending
-            </a>
-            <a href="all_requests.php?status=approved" class="btn <?php echo $status === 'approved' ? 'btn-success' : 'btn-outline-success'; ?>">
-                Approved
-            </a>
-            <a href="all_requests.php?status=rejected" class="btn <?php echo $status === 'rejected' ? 'btn-danger' : 'btn-outline-danger'; ?>">
-                Rejected
-            </a>
+        <!-- Stats Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card bg-primary text-white mb-3 hover-effect">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title">Total</h6>
+                                <h2 class="mb-0"><?php echo $totalRequests ?? 0; ?></h2>
+                            </div>
+                            <i class="fas fa-list fa-3x opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-warning text-dark mb-3 hover-effect">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title">Pending</h6>
+                                <h2 class="mb-0"><?php echo $pendingRequests ?? 0; ?></h2>
+                            </div>
+                            <i class="fas fa-clock fa-3x opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-success text-white mb-3 hover-effect">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title">Approved</h6>
+                                <h2 class="mb-0"><?php echo $approvedRequests ?? 0; ?></h2>
+                            </div>
+                            <i class="fas fa-check-circle fa-3x opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-danger text-white mb-3 hover-effect">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="card-title">Rejected</h6>
+                                <h2 class="mb-0"><?php echo $rejectedRequests ?? 0; ?></h2>
+                            </div>
+                            <i class="fas fa-times-circle fa-3x opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-    </div>
 
-    <!-- Leave Requests Table -->
-    <div class="card">
-        <div class="card-header bg-primary text-white">
-            <h5 class="mb-0">Leave Requests</h5>
+        <!-- Filters -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <form method="GET" action="all_requests.php" class="row g-3">
+                    <div class="col-md-4">
+                        <label for="status" class="form-label">Filter by Status</label>
+                        <select name="status" id="status" class="form-select">
+                            <option value="all" <?php echo $filterStatus === 'all' ? 'selected' : ''; ?>>All Statuses</option>
+                            <option value="pending" <?php echo $filterStatus === 'pending' ? 'selected' : ''; ?>>Pending</option>
+                            <option value="approved" <?php echo $filterStatus === 'approved' ? 'selected' : ''; ?>>Approved</option>
+                            <option value="rejected" <?php echo $filterStatus === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="type" class="form-label">Filter by Leave Type</label>
+                        <select name="type" id="type" class="form-select">
+                            <option value="all" <?php echo $filterType === 'all' ? 'selected' : ''; ?>>All Types</option>
+                            <option value="sick" <?php echo $filterType === 'sick' ? 'selected' : ''; ?>>Sick Leave</option>
+                            <option value="vacation" <?php echo $filterType === 'vacation' ? 'selected' : ''; ?>>Vacation Leave</option>
+                            <option value="personal" <?php echo $filterType === 'personal' ? 'selected' : ''; ?>>Personal Leave</option>
+                            <option value="emergency" <?php echo $filterType === 'emergency' ? 'selected' : ''; ?>>Emergency Leave</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary me-2">
+                            <i class="fas fa-filter me-2"></i> Apply Filters
+                        </button>
+                        <a href="all_requests.php" class="btn btn-secondary">
+                            <i class="fas fa-redo me-2"></i> Reset
+                        </a>
+                    </div>
+                </form>
+            </div>
         </div>
-        <div class="card-body">
-            <?php if (count($requests) > 0): ?>
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                        <tr>
-                            <th>Employee</th>
-                            <th>Email</th>
-                            <th>Leave Type</th>
-                            <th>Start Date</th>
-                            <th>End Date</th>
-                            <th>Days</th>
-                            <th>Status</th>
-                            <th>Applied</th>
-                            <th>Actions</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        <?php foreach ($requests as $request): ?>
-                            <?php
-                            $startDate = new DateTime($request['start_date']);
-                            $endDate = new DateTime($request['end_date']);
-                            $interval = $startDate->diff($endDate);
-                            $days = $interval->days + 1;
-                            ?>
+
+        <!-- Leave Requests Table -->
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Leave Requests</h5>
+            </div>
+            <div class="card-body">
+                <?php if (!empty($allRequests)): ?>
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
                             <tr>
-                                <td><?php echo htmlspecialchars($request['user_name']); ?></td>
-                                <td><?php echo htmlspecialchars($request['user_email']); ?></td>
-                                <td>
-                                    <span class="badge bg-info">
-                                        <?php echo ucfirst($request['leave_type']); ?>
-                                    </span>
-                                </td>
-                                <td><?php echo formatDateForDisplay($request['start_date']); ?></td>
-                                <td><?php echo formatDateForDisplay($request['end_date']); ?></td>
-                                <td><?php echo $days; ?></td>
-                                <td>
-                                    <span class="badge bg-<?php
-                                    echo $request['status'] === 'approved' ? 'success' :
-                                        ($request['status'] === 'rejected' ? 'danger' : 'warning');
-                                    ?>">
-                                        <?php echo ucfirst($request['status']); ?>
-                                    </span>
-                                </td>
-                                <td><?php echo formatDateForDisplay($request['applied_at']); ?></td>
-                                <td>
-                                    <div class="btn-group">
-                                        <button type="button" class="btn btn-sm btn-info view-request-btn"
-                                                data-bs-toggle="modal"
-                                                data-bs-target="#viewModal"
-                                                data-request-id="<?php echo $request['id']; ?>"
-                                                data-employee="<?php echo htmlspecialchars($request['user_name']); ?>"
-                                                data-email="<?php echo htmlspecialchars($request['user_email']); ?>"
-                                                data-leave-type="<?php echo ucfirst($request['leave_type']); ?>"
-                                                data-start-date="<?php echo formatDateForDisplay($request['start_date']); ?>"
-                                                data-end-date="<?php echo formatDateForDisplay($request['end_date']); ?>"
-                                                data-days="<?php echo $days; ?>"
-                                                data-status="<?php echo ucfirst($request['status']); ?>"
-                                                data-applied-on="<?php echo formatDateForDisplay($request['applied_at']); ?>"
-                                                data-reviewed-on="<?php echo $request['reviewed_at'] ? formatDateForDisplay($request['reviewed_at']) : 'Not reviewed'; ?>"
-                                                data-reviewed-by="<?php echo $request['reviewed_by'] ? getUserNameById($request['reviewed_by']) : 'Not reviewed'; ?>"
-                                                data-reason="<?php echo htmlspecialchars($request['reason']); ?>"
-                                                data-admin-comment="<?php echo htmlspecialchars($request['admin_comment'] ?? ''); ?>">
-                                            <i class="fas fa-eye"></i>
-                                        </button>
-                                        <?php if ($request['status'] === 'pending'): ?>
-                                            <button type="button" class="btn btn-sm btn-success approve-btn"
-                                                    data-request-id="<?php echo $request['id']; ?>"
-                                                    data-user-name="<?php echo htmlspecialchars($request['user_name']); ?>">
-                                                <i class="fas fa-check"></i>
-                                            </button>
-                                            <button type="button" class="btn btn-sm btn-danger reject-btn"
-                                                    data-request-id="<?php echo $request['id']; ?>"
-                                                    data-user-name="<?php echo htmlspecialchars($request['user_name']); ?>">
-                                                <i class="fas fa-times"></i>
-                                            </button>
-                                        <?php endif; ?>
-                                    </div>
-                                </td>
+                                <th>ID</th>
+                                <th>Employee</th>
+                                <th>Leave Type</th>
+                                <th>Dates</th>
+                                <th>Duration</th>
+                                <th>Applied On</th>
+                                <th>Status</th>
+                                <th>Actions</th>
                             </tr>
-                        <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            <?php else: ?>
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle me-2"></i> No leave requests found.
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
-</div>
+                            </thead>
+                            <tbody>
+                            <?php foreach ($allRequests as $request): ?>
+                                <tr>
+                                    <td><?php echo $request['id']; ?></td>
+                                    <td>
+                                        <?php echo $request['user_name']; ?><br>
+                                        <small class="text-muted"><?php echo $request['user_email']; ?></small>
+                                    </td>
+                                    <td>
+                                        <?php
+                                        $leaveTypeClass = '';
+                                        switch ($request['leave_type']) {
+                                            case 'sick': $leaveTypeClass = 'bg-danger'; break;
+                                            case 'vacation': $leaveTypeClass = 'bg-primary'; break;
+                                            case 'personal': $leaveTypeClass = 'bg-info'; break;
+                                            case 'emergency': $leaveTypeClass = 'bg-warning text-dark'; break;
+                                            default: $leaveTypeClass = 'bg-secondary';
+                                        }
+                                        ?>
+                                        <span class="badge <?php echo $leaveTypeClass; ?>"><?php echo ucfirst($request['leave_type']); ?></span>
+                                    </td>
+                                    <td>
+                                        <?php echo formatDateForDisplay($request['start_date'], 'Y-m-d'); ?> to<br>
+                                        <?php echo formatDateForDisplay($request['end_date'], 'Y-m-d'); ?>
+                                    </td>
+                                    <td>
+                                        <?php echo calculateLeaveDays($request['start_date'], $request['end_date']); ?> days
+                                    </td>
+                                    <td>
+                                        <?php echo formatDateForDisplay($request['applied_at'], 'Y-m-d H:i'); ?>
+                                    </td>
+                                    <td>
+                                        <?php
+                                        $statusClass = '';
+                                        switch ($request['status']) {
+                                            case 'approved': $statusClass = 'bg-success'; break;
+                                            case 'rejected': $statusClass = 'bg-danger'; break;
+                                            default: $statusClass = 'bg-warning text-dark';
+                                        }
+                                        ?>
+                                        <span class="badge <?php echo $statusClass; ?>"><?php echo ucfirst($request['status']); ?></span>
+                                        <?php if (isset($request['admin_comment']) && !empty($request['admin_comment'])): ?>
+                                            <i class="fas fa-comment-dots ms-1" data-bs-toggle="tooltip" title="<?php echo htmlspecialchars($request['admin_comment']); ?>"></i>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <a href="view_request.php?id=<?php echo $request['id']; ?>" class="btn btn-primary btn-sm">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
 
-<!-- Single View Modal (Reusable) -->
-<div class="modal fade" id="viewModal" tabindex="-1" aria-labelledby="viewModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header bg-info text-white">
-                <h5 class="modal-title" id="viewModalLabel">Leave Request Details</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <p><strong>Employee:</strong> <span id="modal-employee"></span></p>
-                        <p><strong>Email:</strong> <span id="modal-email"></span></p>
-                        <p><strong>Leave Type:</strong> <span id="modal-leave-type"></span></p>
-                        <p><strong>From:</strong> <span id="modal-start-date"></span></p>
-                        <p><strong>To:</strong> <span id="modal-end-date"></span></p>
+                                        <?php if ($request['status'] === 'pending'): ?>
+                                            <div class="dropdown d-inline">
+                                                <button class="btn btn-secondary btn-sm dropdown-toggle" type="button" id="dropdownMenuButton<?php echo $request['id']; ?>" data-bs-toggle="dropdown" aria-expanded="false">
+                                                    <i class="fas fa-cog"></i>
+                                                </button>
+                                                <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton<?php echo $request['id']; ?>">
+                                                    <li>
+                                                        <a class="dropdown-item approve-btn" href="#" data-id="<?php echo $request['id']; ?>" data-bs-toggle="modal" data-bs-target="#approveModal">
+                                                            <i class="fas fa-check-circle text-success me-2"></i> Approve
+                                                        </a>
+                                                    </li>
+                                                    <li>
+                                                        <a class="dropdown-item reject-btn" href="#" data-id="<?php echo $request['id']; ?>" data-bs-toggle="modal" data-bs-target="#rejectModal">
+                                                            <i class="fas fa-times-circle text-danger me-2"></i> Reject
+                                                        </a>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
                     </div>
-                    <div class="col-md-6">
-                        <p><strong>Total Days:</strong> <span id="modal-days"></span></p>
-                        <p><strong>Status:</strong> <span id="modal-status-badge"></span></p>
-                        <p><strong>Applied On:</strong> <span id="modal-applied-on"></span></p>
-                        <p><strong>Reviewed On:</strong> <span id="modal-reviewed-on"></span></p>
-                        <p><strong>Reviewed By:</strong> <span id="modal-reviewed-by"></span></p>
+                <?php else: ?>
+                    <div class="alert alert-info mb-0">
+                        <i class="fas fa-info-circle me-2"></i> No leave requests found with the selected filters.
                     </div>
-                </div>
-                <hr>
-                <p><strong>Reason:</strong></p>
-                <p id="modal-reason" class="text-muted"></p>
-
-                <div id="modal-admin-comment-section" style="display: none;">
-                    <hr>
-                    <p><strong>Admin Comment:</strong></p>
-                    <p id="modal-admin-comment" class="text-muted"></p>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -268,23 +305,25 @@ try {
 <div class="modal fade" id="approveModal" tabindex="-1" aria-labelledby="approveModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title" id="approveModalLabel">Approve Leave Request</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form method="POST" action="all_requests.php">
+            <form action="process_request.php" method="POST">
+                <input type="hidden" name="action" value="approve">
+                <input type="hidden" name="request_id" id="approve_request_id">
+
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title" id="approveModalLabel">Approve Leave Request</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
                 <div class="modal-body">
-                    <p>Are you sure you want to approve the leave request from <strong><span id="approve-user-name"></span></strong>?</p>
+                    <p>Are you sure you want to approve this leave request?</p>
+
                     <div class="mb-3">
-                        <label for="approve-comment" class="form-label">Comment (Optional)</label>
-                        <textarea class="form-control" id="approve-comment" name="comment" rows="3" placeholder="Add a comment for this approval"></textarea>
+                        <label for="admin_comment" class="form-label">Comment (Optional)</label>
+                        <textarea class="form-control" id="admin_comment" name="admin_comment" rows="3" placeholder="Add an optional comment..."></textarea>
                     </div>
-                    <input type="hidden" name="request_id" id="approve-request-id" value="">
-                    <input type="hidden" name="action" value="approve">
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-success">Approve</button>
+                    <button type="submit" class="btn btn-success">Approve Leave</button>
                 </div>
             </form>
         </div>
@@ -295,23 +334,25 @@ try {
 <div class="modal fade" id="rejectModal" tabindex="-1" aria-labelledby="rejectModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title" id="rejectModalLabel">Reject Leave Request</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form method="POST" action="all_requests.php">
+            <form action="process_request.php" method="POST">
+                <input type="hidden" name="action" value="reject">
+                <input type="hidden" name="request_id" id="reject_request_id">
+
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title" id="rejectModalLabel">Reject Leave Request</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
                 <div class="modal-body">
-                    <p>Are you sure you want to reject the leave request from <strong><span id="reject-user-name"></span></strong>?</p>
+                    <p>Are you sure you want to reject this leave request?</p>
+
                     <div class="mb-3">
-                        <label for="reject-comment" class="form-label">Reason for Rejection</label>
-                        <textarea class="form-control" id="reject-comment" name="comment" rows="3" placeholder="Provide a reason for rejection" required></textarea>
+                        <label for="reject_admin_comment" class="form-label">Reason for Rejection</label>
+                        <textarea class="form-control" id="reject_admin_comment" name="admin_comment" rows="3" placeholder="Provide a reason for rejection..." required></textarea>
                     </div>
-                    <input type="hidden" name="request_id" id="reject-request-id" value="">
-                    <input type="hidden" name="action" value="reject">
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-danger">Reject</button>
+                    <button type="submit" class="btn btn-danger">Reject Leave</button>
                 </div>
             </form>
         </div>
@@ -321,162 +362,25 @@ try {
 <?php include '../includes/footer.php'; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="../assets/js/scripts.js"></script>
-
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Enhanced modal cleanup function
-        function cleanupModals() {
-            // Remove any existing backdrops
-            const backdrops = document.querySelectorAll('.modal-backdrop');
-            backdrops.forEach(backdrop => backdrop.remove());
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+        })
 
-            // Reset body styles
-            document.body.classList.remove('modal-open');
-            document.body.style.overflow = '';
-            document.body.style.paddingRight = '';
-
-            // Remove any lingering modal classes
-            document.body.removeAttribute('data-bs-overflow');
-            document.body.removeAttribute('data-bs-padding-right');
-        }
-
-        // Handle view modal
-        const viewButtons = document.querySelectorAll('.view-request-btn');
-        const viewModal = document.getElementById('viewModal');
-
-        viewButtons.forEach(button => {
-            button.addEventListener('click', function(e) {
-                e.preventDefault();
-                cleanupModals(); // Clean up before opening
-
-                // Get data from button attributes
-                const employee = this.getAttribute('data-employee');
-                const email = this.getAttribute('data-email');
-                const leaveType = this.getAttribute('data-leave-type');
-                const startDate = this.getAttribute('data-start-date');
-                const endDate = this.getAttribute('data-end-date');
-                const days = this.getAttribute('data-days');
-                const status = this.getAttribute('data-status');
-                const appliedOn = this.getAttribute('data-applied-on');
-                const reviewedOn = this.getAttribute('data-reviewed-on');
-                const reviewedBy = this.getAttribute('data-reviewed-by');
-                const reason = this.getAttribute('data-reason');
-                const adminComment = this.getAttribute('data-admin-comment');
-
-                // Populate modal fields
-                document.getElementById('modal-employee').textContent = employee;
-                document.getElementById('modal-email').textContent = email;
-                document.getElementById('modal-leave-type').textContent = leaveType;
-                document.getElementById('modal-start-date').textContent = startDate;
-                document.getElementById('modal-end-date').textContent = endDate;
-                document.getElementById('modal-days').textContent = days;
-                document.getElementById('modal-applied-on').textContent = appliedOn;
-                document.getElementById('modal-reviewed-on').textContent = reviewedOn;
-                document.getElementById('modal-reviewed-by').textContent = reviewedBy;
-                document.getElementById('modal-reason').textContent = reason;
-
-                // Set status badge
-                const statusBadge = document.getElementById('modal-status-badge');
-                let badgeClass = 'badge ';
-                if (status.toLowerCase() === 'approved') {
-                    badgeClass += 'bg-success';
-                } else if (status.toLowerCase() === 'rejected') {
-                    badgeClass += 'bg-danger';
-                } else {
-                    badgeClass += 'bg-warning';
-                }
-                statusBadge.innerHTML = `<span class="${badgeClass}">${status}</span>`;
-
-                // Show admin comment if exists
-                const adminCommentSection = document.getElementById('modal-admin-comment-section');
-                const adminCommentDiv = document.getElementById('modal-admin-comment');
-
-                if (adminComment && adminComment.trim() !== '') {
-                    adminCommentDiv.textContent = adminComment;
-                    adminCommentSection.style.display = 'block';
-                } else {
-                    adminCommentSection.style.display = 'none';
-                }
+        document.querySelectorAll('.approve-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                document.getElementById('approve_request_id').value = this.getAttribute('data-id');
             });
         });
 
-        // Handle approve buttons
-        const approveButtons = document.querySelectorAll('.approve-btn');
-        const approveModal = document.getElementById('approveModal');
-
-        approveButtons.forEach(button => {
-            button.addEventListener('click', function(e) {
-                e.preventDefault();
-                cleanupModals(); // Clean up before opening
-
-                const requestId = this.getAttribute('data-request-id');
-                const userName = this.getAttribute('data-user-name');
-
-                document.getElementById('approve-request-id').value = requestId;
-                document.getElementById('approve-user-name').textContent = userName;
-                document.getElementById('approve-comment').value = '';
-
-                // Show modal
-                const modal = new bootstrap.Modal(approveModal);
-                modal.show();
+        document.querySelectorAll('.reject-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                document.getElementById('reject_request_id').value = this.getAttribute('data-id');
             });
         });
-
-        // Handle reject buttons
-        const rejectButtons = document.querySelectorAll('.reject-btn');
-        const rejectModal = document.getElementById('rejectModal');
-
-        rejectButtons.forEach(button => {
-            button.addEventListener('click', function(e) {
-                e.preventDefault();
-                cleanupModals(); // Clean up before opening
-
-                const requestId = this.getAttribute('data-request-id');
-                const userName = this.getAttribute('data-user-name');
-
-                document.getElementById('reject-request-id').value = requestId;
-                document.getElementById('reject-user-name').textContent = userName;
-                document.getElementById('reject-comment').value = '';
-
-                // Show modal
-                const modal = new bootstrap.Modal(rejectModal);
-                modal.show();
-            });
-        });
-
-        // Enhanced modal cleanup for all modals
-        const allModals = document.querySelectorAll('.modal');
-        allModals.forEach(modal => {
-            // Clean up when modal is hidden
-            modal.addEventListener('hidden.bs.modal', function() {
-                cleanupModals();
-            });
-
-            // Prevent backdrop click from causing issues
-            modal.addEventListener('show.bs.modal', function() {
-                cleanupModals();
-            });
-        });
-
-        // Global click handler to clean up any stuck backdrops
-        document.addEventListener('click', function(e) {
-            if (e.target.classList.contains('modal-backdrop')) {
-                cleanupModals();
-            }
-        });
-
-        // Escape key handler
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                cleanupModals();
-            }
-        });
-
-        // Initial cleanup on page load
-        cleanupModals();
     });
 </script>
-
 </body>
 </html>

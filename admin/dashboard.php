@@ -2,30 +2,23 @@
 global $pdo;
 require_once '../includes/functions.php';
 
-// Check if user is logged in and is admin
 if (!isLoggedIn() || !isAdmin()) {
     redirectWithMessage('../login.php', 'You must log in as admin to access this page', 'warning');
 }
 
-// Get counts for the dashboard
 try {
-    // Total users
     $stmt = $pdo->query("SELECT COUNT(*) FROM users");
     $totalUsers = $stmt->fetchColumn();
 
-    // Total leave requests
     $stmt = $pdo->query("SELECT COUNT(*) FROM leave_requests");
     $totalRequests = $stmt->fetchColumn();
 
-    // Pending leave requests
     $stmt = $pdo->query("SELECT COUNT(*) FROM leave_requests WHERE status = 'pending'");
     $pendingRequests = $stmt->fetchColumn();
 
-    // Approved leave requests
     $stmt = $pdo->query("SELECT COUNT(*) FROM leave_requests WHERE status = 'approved'");
     $approvedRequests = $stmt->fetchColumn();
 
-    // Recent leave requests
     $stmt = $pdo->query("
         SELECT lr.*, u.name as user_name
         FROM leave_requests lr
@@ -35,7 +28,6 @@ try {
     ");
     $recentRequests = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Recent users
     $stmt = $pdo->query("
         SELECT *
         FROM users

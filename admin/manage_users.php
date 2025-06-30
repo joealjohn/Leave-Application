@@ -2,7 +2,6 @@
 global $pdo;
 require_once '../includes/functions.php';
 
-// Check if user is logged in and is admin
 if (!isLoggedIn() || !isAdmin()) {
     redirectWithMessage('../login.php', 'Access denied. Admin privileges required.', 'danger');
 }
@@ -11,9 +10,7 @@ $error = '';
 $success = '';
 $currentUserId = $_SESSION['user_id'];
 
-// Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Add new user
     if (isset($_POST['action']) && $_POST['action'] === 'add_user') {
         $name = trim($_POST['name'] ?? '');
         $email = trim($_POST['email'] ?? '');
@@ -22,7 +19,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $errors = [];
 
-        // Validate inputs
         if (empty($name)) {
             $errors[] = "Name is required";
         }
@@ -39,7 +35,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = "Password must be at least 6 characters long";
         }
 
-        // Check if email already exists
         if (empty($errors)) {
             try {
                 $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE email = ?");
@@ -52,7 +47,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // If no errors, add user
         if (empty($errors)) {
             try {
                 $hashedPassword = generatePasswordHash($password);
@@ -69,7 +63,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // Update user
     else if (isset($_POST['action']) && $_POST['action'] === 'update_user') {
         $userId = $_POST['user_id'] ?? 0;
         $name = trim($_POST['name'] ?? '');
@@ -78,7 +71,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $errors = [];
 
-        // Validate inputs
         if (empty($name)) {
             $errors[] = "Name is required";
         }
@@ -89,9 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = "Invalid email format";
         }
 
-        // Check if trying to change admin@gmail.com
         if ($email === 'admin@gmail.com' && $userId != $currentUserId) {
-            // Get current email to check if it's being changed
             $stmt = $pdo->prepare("SELECT email FROM users WHERE id = ?");
             $stmt->execute([$userId]);
             $currentEmail = $stmt->fetchColumn();
@@ -101,7 +91,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // Check email uniqueness (excluding current user)
         if (empty($errors)) {
             try {
                 $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE email = ? AND id != ?");
@@ -114,7 +103,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // Don't allow role changes for admin@gmail.com
         if (empty($errors)) {
             try {
                 $stmt = $pdo->prepare("SELECT email FROM users WHERE id = ?");
@@ -129,7 +117,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // If no errors, update user
         if (empty($errors)) {
             try {
                 $stmt = $pdo->prepare("UPDATE users SET name = ?, email = ?, role = ? WHERE id = ?");
@@ -145,17 +132,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // Delete user
     else if (isset($_POST['action']) && $_POST['action'] === 'delete_user') {
         $userId = $_POST['user_id'] ?? 0;
 
-        // Don't allow self-deletion
         if ($userId == $currentUserId) {
             redirectWithMessage('manage_users.php', 'You cannot delete your own account', 'danger');
             exit;
         }
 
-        // Check if user is trying to delete admin@gmail.com
         $stmt = $pdo->prepare("SELECT email FROM users WHERE id = ?");
         $stmt->execute([$userId]);
         $userEmail = $stmt->fetchColumn();
@@ -166,16 +150,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         try {
-            // Get user name for logging
             $stmt = $pdo->prepare("SELECT name FROM users WHERE id = ?");
             $stmt->execute([$userId]);
             $userName = $stmt->fetchColumn();
 
-            // Delete user
             $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
             $stmt->execute([$userId]);
 
-            // Log activity
             logActivity('User Deletion', "Deleted user: $userName (ID: $userId)");
 
             redirectWithMessage('manage_users.php', 'User deleted successfully', 'success');
@@ -185,7 +166,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Get all users
 try {
     $stmt = $pdo->query("SELECT * FROM users ORDER BY role = 'admin' DESC, created_at DESC");
     $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -415,7 +395,6 @@ try {
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Edit User Modal Handler
         const editButtons = document.querySelectorAll('.edit-user-btn');
         const editModal = document.getElementById('editUserModal');
 
@@ -426,13 +405,11 @@ try {
                 const userEmail = this.getAttribute('data-user-email');
                 const userRole = this.getAttribute('data-user-role');
 
-                // Populate form fields
                 document.getElementById('edit_user_id').value = userId;
                 document.getElementById('edit_name').value = userName;
                 document.getElementById('edit_email').value = userEmail;
                 document.getElementById('edit_role').value = userRole;
 
-                // Handle admin@gmail.com restrictions
                 const isMainAdmin = userEmail === 'admin@gmail.com';
                 const nameField = document.getElementById('edit_name');
                 const emailField = document.getElementById('edit_email');
@@ -459,7 +436,6 @@ try {
             });
         });
 
-        // Delete User Modal Handler
         const deleteButtons = document.querySelectorAll('.delete-user-btn');
 
         deleteButtons.forEach(button => {
@@ -472,29 +448,22 @@ try {
             });
         });
 
-        // Enhanced modal cleanup to prevent black overlay
         const allModals = document.querySelectorAll('.modal');
         allModals.forEach(modal => {
-            // When modal is fully hidden
             modal.addEventListener('hidden.bs.modal', function() {
-                // Force cleanup of backdrop with a slight delay
                 setTimeout(() => {
-                    // Remove any orphaned modal backdrops
                     const backdrops = document.querySelectorAll('.modal-backdrop');
                     backdrops.forEach(backdrop => {
                         backdrop.remove();
                     });
 
-                    // Reset body styles
                     document.body.classList.remove('modal-open');
                     document.body.style.overflow = '';
                     document.body.style.paddingRight = '';
                 }, 100);
             });
 
-            // When modal is being hidden
             modal.addEventListener('hide.bs.modal', function() {
-                // Ensure proper cleanup
                 setTimeout(() => {
                     if (document.querySelectorAll('.modal.show').length === 0) {
                         document.body.classList.remove('modal-open');
@@ -505,10 +474,8 @@ try {
             });
         });
 
-        // Emergency cleanup on page click
         document.addEventListener('click', function(e) {
             if (e.target.classList.contains('modal-backdrop')) {
-                // Force close all modals and clean up
                 const openModals = document.querySelectorAll('.modal.show');
                 openModals.forEach(modal => {
                     const bsModal = bootstrap.Modal.getInstance(modal);
@@ -517,7 +484,6 @@ try {
                     }
                 });
 
-                // Force cleanup
                 setTimeout(() => {
                     const backdrops = document.querySelectorAll('.modal-backdrop');
                     backdrops.forEach(backdrop => backdrop.remove());

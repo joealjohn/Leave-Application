@@ -2,16 +2,13 @@
 global $pdo;
 require_once '../includes/functions.php';
 
-// Check if user is logged in
 if (!isLoggedIn()) {
     redirectWithMessage('../login.php', 'You must log in to access this page', 'warning');
 }
 
-// Get user's leave requests
 $userId = $_SESSION['user_id'];
 
 try {
-    // Get pending leave requests
     $stmt = $pdo->prepare("
         SELECT * FROM leave_requests 
         WHERE user_id = ? AND status = 'pending'
@@ -20,7 +17,6 @@ try {
     $stmt->execute([$userId]);
     $pendingRequests = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Get recent leave requests
     $stmt = $pdo->prepare("
         SELECT * FROM leave_requests 
         WHERE user_id = ?
@@ -30,7 +26,6 @@ try {
     $stmt->execute([$userId]);
     $recentRequests = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Get leave statistics
     $stmt = $pdo->prepare("
         SELECT 
             COUNT(*) as total,

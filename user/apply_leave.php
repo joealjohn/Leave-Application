@@ -2,19 +2,16 @@
 global $pdo;
 require_once '../includes/functions.php';
 
-// Check if user is logged in
 if (!isLoggedIn()) {
     redirectWithMessage('../login.php', 'You must log in to access this page', 'warning');
 }
 
-// Process form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $leaveType = $_POST['leave_type'] ?? '';
     $startDate = $_POST['start_date'] ?? '';
     $endDate = $_POST['end_date'] ?? '';
     $reason = $_POST['reason'] ?? '';
 
-    // Validate inputs
     $errors = [];
 
     if (empty($leaveType)) {
@@ -37,7 +34,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = "Please provide a reason for leave";
     }
 
-    // If no errors, save leave request
     if (empty($errors)) {
         $userId = $_SESSION['user_id'];
 
@@ -45,7 +41,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("INSERT INTO leave_requests (user_id, leave_type, start_date, end_date, reason, status, applied_at) VALUES (?, ?, ?, ?, ?, 'pending', ?)");
             $stmt->execute([$userId, $leaveType, $startDate, $endDate, $reason, getCurrentDateTime()]);
 
-            // Log activity
             logActivity('Leave Application', "Applied for {$leaveType} leave from {$startDate} to {$endDate}");
 
             redirectWithMessage('dashboard.php', 'Leave request submitted successfully!', 'success');
@@ -55,7 +50,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Get user's recent leave requests
 $userId = $_SESSION['user_id'];
 try {
     $stmt = $pdo->prepare("
@@ -252,7 +246,6 @@ try {
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Initialize date pickers with better formatting
         flatpickr(".datepicker", {
             dateFormat: "Y-m-d",
             minDate: "today",
@@ -260,7 +253,6 @@ try {
             allowInput: true
         });
 
-        // Calculate leave days when dates change
         const startDateInput = document.getElementById('start_date');
         const endDateInput = document.getElementById('end_date');
 
@@ -269,8 +261,6 @@ try {
             const endDate = endDateInput.value;
 
             if (startDate && endDate) {
-                // You could add AJAX call here to calculate days excluding weekends
-                // For now we'll just show a simple message
                 console.log("Dates selected:", startDate, "to", endDate);
             }
         }

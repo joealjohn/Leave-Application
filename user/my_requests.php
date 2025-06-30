@@ -2,16 +2,13 @@
 global $pdo;
 require_once '../includes/functions.php';
 
-// Check if user is logged in
 if (!isLoggedIn()) {
     redirectWithMessage('../login.php', 'You must log in to access this page', 'warning');
 }
 
-// Get user's leave requests
 $userId = $_SESSION['user_id'];
 
 try {
-    // Get leave requests for the user
     $stmt = $pdo->prepare("
         SELECT * FROM leave_requests 
         WHERE user_id = ?
@@ -37,7 +34,6 @@ try {
 </head>
 <body>
 <?php
-// IMPORTANT: Include navbar ONLY ONCE
 include '../includes/user-navbar.php';
 ?>
 
@@ -116,7 +112,6 @@ include '../includes/user-navbar.php';
                             <?php foreach ($requests as $request): ?>
                                 <?php
                                 $days = calculateLeaveDays($request['start_date'], $request['end_date']);
-                                // Apply filters if set
                                 if (isset($_GET['status']) && $_GET['status'] !== 'all' && $_GET['status'] !== $request['status']) {
                                     continue;
                                 }
@@ -203,14 +198,12 @@ include '../includes/user-navbar.php';
 </div>
 
 <?php
-// IMPORTANT: Include footer ONLY ONCE and after content-wrapper
 include '../includes/footer.php';
 ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Setup view modal
         var viewBtns = document.querySelectorAll('.view-btn');
         viewBtns.forEach(function(btn) {
             btn.addEventListener('click', function() {

@@ -1,11 +1,10 @@
 <?php
-// Correct the path to functions.php based on the file's location
 global $pdo;
-require_once 'includes/functions.php';  // Changed from '../includes/functions.php'
+require_once 'includes/functions.php';
 
-// Check if already logged in
+
 if (isLoggedIn()) {
-    // Redirect based on role
+
     if (isAdmin()) {
         redirectWithMessage('admin/dashboard.php', 'You are already logged in!', 'info');
     } else {
@@ -13,14 +12,14 @@ if (isLoggedIn()) {
     }
 }
 
-// Process registration form
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = $_POST['name'] ?? '';
     $email = $_POST['email'] ?? '';
     $password = $_POST['password'] ?? '';
     $confirmPassword = $_POST['confirm_password'] ?? '';
 
-    // Validate inputs
+
     $errors = [];
 
     if (empty($name)) {
@@ -43,17 +42,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = "Passwords do not match";
     }
 
-    // Check if email or username already exists
     if (empty($errors)) {
         try {
-            // Check if username exists
+
             $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE name = ?");
             $stmt->execute([$name]);
             if ($stmt->fetchColumn() > 0) {
                 $errors[] = "Username already exists";
             }
 
-            // Check if email exists
+
             $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE email = ?");
             $stmt->execute([$email]);
             if ($stmt->fetchColumn() > 0) {
@@ -64,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // If no errors, register user
+
     if (empty($errors)) {
         try {
             $hashedPassword = generatePasswordHash($password);
@@ -72,19 +70,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $pdo->prepare("INSERT INTO users (name, email, password, role, created_at) VALUES (?, ?, ?, 'user', ?)");
             $stmt->execute([$name, $email, $hashedPassword, getCurrentDateTime()]);
 
-            // Get new user ID
+
             $userId = $pdo->lastInsertId();
 
-            // Log activity
+
             logActivity('User Registration', "New user registered: $name", $userId);
 
-            // Set session variables
+
             $_SESSION['user_id'] = $userId;
             $_SESSION['user_name'] = $name;
             $_SESSION['user_email'] = $email;
             $_SESSION['user_role'] = 'user';
 
-            // Update last login
+
             updateLastLogin($userId);
 
             redirectWithMessage('user/dashboard.php', 'Registration successful! Welcome to the Leave Management System.', 'success');

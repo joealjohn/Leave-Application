@@ -2,19 +2,16 @@
 global $pdo;
 require_once '../includes/functions.php';
 
-// Check if user is logged in and is admin
 if (!isLoggedIn() || !isAdmin()) {
     redirectWithMessage('../login.php', 'You must log in as admin to access this page', 'warning');
 }
 
-// Check if ID is provided
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     redirectWithMessage('all_requests.php', 'Invalid request ID', 'warning');
 }
 
 $requestId = $_GET['id'];
 
-// Get leave request details
 $stmt = $pdo->prepare("SELECT lr.*, u.name as user_name, u.email as user_email 
                        FROM leave_requests lr 
                        JOIN users u ON lr.user_id = u.id 
@@ -22,7 +19,6 @@ $stmt = $pdo->prepare("SELECT lr.*, u.name as user_name, u.email as user_email
 $stmt->execute([$requestId]);
 $request = $stmt->fetch(PDO::FETCH_ASSOC);
 
-// Check if request exists
 if (!$request) {
     redirectWithMessage('all_requests.php', 'Leave request not found', 'warning');
 }
