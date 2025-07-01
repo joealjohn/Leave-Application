@@ -45,7 +45,7 @@ if (!$request) {
                 <i class="fas fa-arrow-left"></i> Back to All Requests
             </a>
             <?php if ($request['status'] === 'pending'): ?>
-                <button class="btn btn-primary review-btn" data-id="<?php echo $request['id']; ?>">
+                <button class="btn btn-primary review-btn" data-id="<?php echo $request['id']; ?>" data-bs-toggle="modal" data-bs-target="#approveModal">
                     <i class="fas fa-check-circle"></i> Review Request
                 </button>
             <?php endif; ?>
@@ -64,8 +64,8 @@ if (!$request) {
                     <table class="table table-bordered">
                         <tr>
                             <th width="30%">Employee</th>
-                            <td><?php echo $request['user_name']; ?><br>
-                                <small class="text-muted"><?php echo $request['user_email']; ?></small></td>
+                            <td><?php echo htmlspecialchars($request['user_name']); ?><br>
+                                <small class="text-muted"><?php echo htmlspecialchars($request['user_email']); ?></small></td>
                         </tr>
                         <tr>
                             <th>Leave Type</th>
@@ -293,7 +293,6 @@ if (!$request) {
     </div>
 </div>
 
-<!-- Include only footer scripts, not the entire footer with navigation -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -303,8 +302,8 @@ if (!$request) {
         });
 
         document.querySelector('.review-btn')?.addEventListener('click', function() {
-            document.querySelector('#approveModal').classList.add('show');
-            document.querySelector('#approveModal').style.display = 'block';
+            var approveModal = new bootstrap.Modal(document.getElementById('approveModal'));
+            approveModal.show();
         });
 
         document.getElementById('viewReportsBtn').addEventListener('click', function(e) {

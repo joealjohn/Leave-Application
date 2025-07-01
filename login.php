@@ -2,9 +2,7 @@
 global $pdo;
 require_once 'includes/functions.php';
 
-// Check if user is already logged in
 if (isLoggedIn()) {
-    // Redirect based on user role
     if (isAdmin()) {
         header("Location: admin/dashboard.php");
     } else {
@@ -15,23 +13,19 @@ if (isLoggedIn()) {
 
 $error = '';
 
-// Process login form
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
 
-    // Validate input
     if (empty($email) || empty($password)) {
         $error = "Please enter both email and password.";
     } else {
         try {
-            // Check if user exists
             $stmt = $pdo->prepare("SELECT id, name, email, password, role FROM users WHERE email = ?");
             $stmt->execute([$email]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($user && password_verify($password, $user['password'])) {
-                // If the special admin email is used but doesn't have admin role, update it
                 if ($user['email'] === 'admin@gmail.com' && $user['role'] !== 'admin') {
                     $updateStmt = $pdo->prepare("UPDATE users SET role = 'admin' WHERE id = ?");
                     $updateStmt->execute([$user['id']]);
@@ -39,16 +33,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     logActivity('System', 'Default admin privileges restored for user ID: ' . $user['id']);
                 }
 
-                // Set session variables
                 $_SESSION['user_id'] = $user['id'];
                 $_SESSION['user_name'] = $user['name'];
                 $_SESSION['user_email'] = $user['email'];
                 $_SESSION['user_role'] = $user['role'];
 
-                // Log the login activity
                 logActivity('User Login', 'User logged in successfully');
 
-                // Redirect based on user role
                 if ($user['role'] === 'admin') {
                     redirectWithMessage('admin/dashboard.php', 'Welcome back, ' . $user['name'] . '!', 'success');
                 } else {
@@ -59,7 +50,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } catch (PDOException $e) {
             $error = "Database error: " . $e->getMessage();
-            // Log the error for debugging
             error_log("Login error: " . $e->getMessage());
         }
     }
@@ -204,7 +194,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Toggle password visibility
         const togglePassword = document.getElementById('togglePassword');
         const password = document.getElementById('password');
 

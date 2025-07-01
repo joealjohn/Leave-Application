@@ -1,67 +1,111 @@
 <?php
-global $pdo;
 require_once '../includes/functions.php';
 
+// Check if user is logged in
 if (!isLoggedIn()) {
     redirectWithMessage('../login.php', 'You must log in to access this page', 'warning');
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $leaveType = $_POST['leave_type'] ?? '';
-    $startDate = $_POST['start_date'] ?? '';
-    $endDate = $_POST['end_date'] ?? '';
-    $reason = $_POST['reason'] ?? '';
+// Get user details
+$userId = $_SESSION['user_id'];
+$userDetails = getUserDetails($userId);
 
+// Hardcoded leave types
+$leaveTypes = [
+    'sick' => 'Sick Leave',
+    'vacation' => 'Vacation Leave',
+    'emergency' => 'Emergency Leave',
+    'personal' => 'Personal Leave'
+];
+
+// Process form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Get form data
+    $leaveType = sanitizeInput($_POST['leave_type'] ?? '');
+    $startDate = sanitizeInput($_POST['start_date'] ?? '');
+    $endDate = sanitizeInput($_POST['end_date'] ?? '');
+    $reason = sanitizeInput($_POST['reason'] ?? '');
+
+    // Validate inputs
     $errors = [];
 
     if (empty($leaveType)) {
-        $errors[] = "Please select a leave type";
+        $errors[] = "Leave type is required";
     }
 
     if (empty($startDate) || !isValidDate($startDate)) {
-        $errors[] = "Please enter a valid start date";
+        $errors[] = "Valid start date is required";
     }
 
     if (empty($endDate) || !isValidDate($endDate)) {
-        $errors[] = "Please enter a valid end date";
+        $errors[] = "Valid end date is required";
     }
 
-    if (!empty($startDate) && !empty($endDate) && strtotime($startDate) > strtotime($endDate)) {
-        $errors[] = "End date must be after start date";
+    // Check if start date is before end date
+    if (isValidDate($startDate) && isValidDate($endDate)) {
+        $start = new DateTime($startDate);
+        $end = new DateTime($endDate);
+
+        if ($start > $end) {
+            $errors[] = "Start date cannot be after end date";
+        }
     }
 
     if (empty($reason)) {
-        $errors[] = "Please provide a reason for leave";
+        $errors[] = "Reason is required";
     }
 
+    // Calculate leave days
+    $leaveDays = calculateLeaveDays($startDate, $endDate);
+
+    // If no errors, save leave request
     if (empty($errors)) {
-        $userId = $_SESSION['user_id'];
-
         try {
-            $stmt = $pdo->prepare("INSERT INTO leave_requests (user_id, leave_type, start_date, end_date, reason, status, applied_at) VALUES (?, ?, ?, ?, ?, 'pending', ?)");
-            $stmt->execute([$userId, $leaveType, $startDate, $endDate, $reason, getCurrentDateTime()]);
+            global $pdo;
 
-            logActivity('Leave Application', "Applied for {$leaveType} leave from {$startDate} to {$endDate}");
+            // First, let's check the table structure to ensure we're using the correct columns
+            $tableCheck = $pdo->query("DESCRIBE leave_requests");
+            $columns = [];
+            while($row = $tableCheck->fetch(PDO::FETCH_ASSOC)) {
+                $columns[] = $row['Field'];
+            }
 
-            redirectWithMessage('dashboard.php', 'Leave request submitted successfully!', 'success');
+            // Adapt our query to the actual table structure
+            // Basic query with minimal columns that should exist
+            $sql = "INSERT INTO leave_requests (user_id, leave_type, start_date, end_date, reason, status";
+            $values = "(?, ?, ?, ?, ?, 'pending'";
+            $params = [$userId, $leaveType, $startDate, $endDate, $reason];
+
+            // Add optional columns if they exist
+            if (in_array('days', $columns)) {
+                $sql .= ", days";
+                $values .= ", ?";
+                $params[] = $leaveDays;
+            }
+
+            if (in_array('applied_at', $columns)) {
+                $sql .= ", applied_at";
+                $values .= ", ?";
+                $params[] = getCurrentDateTime();
+            }
+
+            // Close the SQL statement
+            $sql .= ") VALUES " . $values . ")";
+
+            // Prepare and execute the statement
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+
+            // Log activity
+            logActivity('leave_request', "Applied for {$leaveType} leave from {$startDate} to {$endDate}");
+
+            redirectWithMessage('my_requests.php', 'Leave request submitted successfully. It is pending approval.', 'success');
         } catch (PDOException $e) {
-            $errors[] = "Database error: " . $e->getMessage();
+            // Log detailed error for debugging
+            error_log("Error submitting leave request: " . $e->getMessage());
+            $errors[] = "An error occurred while submitting your request. Please try again.";
         }
     }
-}
-
-$userId = $_SESSION['user_id'];
-try {
-    $stmt = $pdo->prepare("
-        SELECT * FROM leave_requests 
-        WHERE user_id = ? 
-        ORDER BY applied_at DESC 
-        LIMIT 3
-    ");
-    $stmt->execute([$userId]);
-    $recentLeaves = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-    $error = "Database error: " . $e->getMessage();
 }
 ?>
 
@@ -73,200 +117,129 @@ try {
     <title>Apply for Leave - Leave Management System</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <!-- Include Flatpickr for better date picker -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="../assets/css/style.css">
 </head>
 <body>
 <?php include '../includes/user-navbar.php'; ?>
 
-<div class="content-wrapper">
-    <div class="container-fluid py-4">
-        <h2 class="mb-4">Apply for Leave</h2>
+<div class="container py-4">
+    <h2 class="mb-4"><i class="fas fa-calendar-plus me-2"></i>Apply for Leave</h2>
 
-        <?php displayMessage(); ?>
+    <?php displayMessage(); ?>
 
-        <?php if (!empty($errors)): ?>
-            <div class="alert alert-danger">
-                <ul class="mb-0">
-                    <?php foreach ($errors as $error): ?>
-                        <li><?php echo $error; ?></li>
-                    <?php endforeach; ?>
-                </ul>
-            </div>
-        <?php endif; ?>
-
-        <div class="row">
-            <!-- Leave Request Form -->
-            <div class="col-lg-8">
-                <div class="card mb-4">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0">Leave Request Form</h5>
-                    </div>
-                    <div class="card-body">
-                        <form method="POST" action="apply_leave.php">
-                            <div class="mb-3">
-                                <label for="leave_type" class="form-label">Leave Type <span class="text-danger">*</span></label>
-                                <select class="form-select" id="leave_type" name="leave_type" required>
-                                    <option value="" selected disabled>Select Leave Type</option>
-                                    <option value="sick" <?php echo isset($_POST['leave_type']) && $_POST['leave_type'] === 'sick' ? 'selected' : ''; ?>>Sick Leave</option>
-                                    <option value="vacation" <?php echo isset($_POST['leave_type']) && $_POST['leave_type'] === 'vacation' ? 'selected' : ''; ?>>Vacation Leave</option>
-                                    <option value="personal" <?php echo isset($_POST['leave_type']) && $_POST['leave_type'] === 'personal' ? 'selected' : ''; ?>>Personal Leave</option>
-                                    <option value="emergency" <?php echo isset($_POST['leave_type']) && $_POST['leave_type'] === 'emergency' ? 'selected' : ''; ?>>Emergency Leave</option>
-                                </select>
-                            </div>
-
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label for="start_date" class="form-label">Start Date <span class="text-danger">*</span></label>
-                                    <div class="input-group">
-                                        <span class="input-group-text"><i class="fas fa-calendar-alt"></i></span>
-                                        <input type="text" class="form-control datepicker" id="start_date" name="start_date" placeholder="yyyy-mm-dd" value="<?php echo $_POST['start_date'] ?? ''; ?>" required>
-                                    </div>
-                                </div>
-
-                                <div class="col-md-6 mb-3">
-                                    <label for="end_date" class="form-label">End Date <span class="text-danger">*</span></label>
-                                    <div class="input-group">
-                                        <span class="input-group-text"><i class="fas fa-calendar-alt"></i></span>
-                                        <input type="text" class="form-control datepicker" id="end_date" name="end_date" placeholder="yyyy-mm-dd" value="<?php echo $_POST['end_date'] ?? ''; ?>" required>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="mb-3">
-                                <label for="reason" class="form-label">Reason for Leave <span class="text-danger">*</span></label>
-                                <textarea class="form-control" id="reason" name="reason" rows="4" required><?php echo $_POST['reason'] ?? ''; ?></textarea>
-                                <div class="form-text">Please provide a detailed reason for your leave request.</div>
-                            </div>
-
-                            <div class="mb-3 pt-2">
-                                <button type="submit" class="btn btn-primary btn-lg">
-                                    <i class="fas fa-paper-plane me-2"></i> Submit Leave Request
-                                </button>
-                                <a href="dashboard.php" class="btn btn-secondary btn-lg ms-2">
-                                    <i class="fas fa-arrow-left me-2"></i> Back to Dashboard
-                                </a>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Sidebar -->
-            <div class="col-lg-4">
-                <!-- Leave Guidelines -->
-                <div class="card mb-4">
-                    <div class="card-header bg-info text-white">
-                        <h5 class="mb-0">Leave Guidelines</h5>
-                    </div>
-                    <div class="card-body">
-                        <ul class="list-group list-group-flush">
-                            <li class="list-group-item d-flex">
-                                    <span class="badge rounded-pill bg-info text-white me-2">
-                                        <i class="fas fa-info"></i>
-                                    </span>
-                                Leave requests must be submitted at least 3 working days in advance for planned leaves.
-                            </li>
-                            <li class="list-group-item d-flex">
-                                    <span class="badge rounded-pill bg-info text-white me-2">
-                                        <i class="fas fa-info"></i>
-                                    </span>
-                                For sick leaves, medical certificate may be required for absences longer than 2 days.
-                            </li>
-                            <li class="list-group-item d-flex">
-                                    <span class="badge rounded-pill bg-info text-white me-2">
-                                        <i class="fas fa-info"></i>
-                                    </span>
-                                Weekend days are automatically excluded from leave calculation.
-                            </li>
-                            <li class="list-group-item d-flex">
-                                    <span class="badge rounded-pill bg-info text-white me-2">
-                                        <i class="fas fa-info"></i>
-                                    </span>
-                                Emergency leaves can be applied on the same day but require approval.
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-
-                <!-- Recent Leaves -->
-                <div class="card">
-                    <div class="card-header bg-success text-white">
-                        <h5 class="mb-0">Your Recent Leaves</h5>
-                    </div>
-                    <div class="card-body">
-                        <?php if (!empty($recentLeaves)): ?>
-                            <div class="list-group">
-                                <?php foreach ($recentLeaves as $leave): ?>
-                                    <div class="list-group-item list-group-item-action">
-                                        <div class="d-flex justify-content-between">
-                                            <h6 class="mb-1"><?php echo ucfirst($leave['leave_type']); ?> Leave</h6>
-                                            <span class="badge bg-<?php
-                                            echo $leave['status'] === 'approved' ? 'success' :
-                                                ($leave['status'] === 'rejected' ? 'danger' : 'warning');
-                                            ?>">
-                                                    <?php echo ucfirst($leave['status']); ?>
-                                                </span>
-                                        </div>
-                                        <p class="mb-1">
-                                            <i class="fas fa-calendar-alt me-1"></i>
-                                            <?php echo formatDateForDisplay($leave['start_date']); ?> to <?php echo formatDateForDisplay($leave['end_date']); ?>
-                                        </p>
-                                        <small class="text-muted">
-                                            Applied on: <?php echo formatDateForDisplay($leave['applied_at'], 'M d, Y'); ?>
-                                        </small>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                            <div class="mt-3">
-                                <a href="my_requests.php" class="btn btn-outline-success btn-sm">
-                                    <i class="fas fa-list me-1"></i> View All Requests
-                                </a>
-                            </div>
-                        <?php else: ?>
-                            <div class="alert alert-info mb-0">
-                                <i class="fas fa-info-circle me-2"></i> No recent leave requests found.
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
+    <?php if (!empty($errors)): ?>
+        <div class="alert alert-danger">
+            <ul class="mb-0">
+                <?php foreach ($errors as $error): ?>
+                    <li><?php echo $error; ?></li>
+                <?php endforeach; ?>
+            </ul>
         </div>
+    <?php endif; ?>
 
-        <!-- Add spacer at bottom to prevent footer overlap -->
-        <div class="back-btn-container"></div>
+    <div class="card">
+        <div class="card-body">
+            <form method="POST" action="">
+                <div class="mb-3">
+                    <label for="leaveType" class="form-label">Leave Type</label>
+                    <select class="form-select" id="leaveType" name="leave_type" required>
+                        <option value="">Select Leave Type</option>
+                        <option value="sick">Sick Leave</option>
+                        <option value="vacation">Vacation Leave</option>
+                        <option value="emergency">Emergency Leave</option>
+                        <option value="personal">Personal Leave</option>
+                    </select>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="startDate" class="form-label">Start Date</label>
+                        <input type="date" class="form-control" id="startDate" name="start_date"
+                               value="<?php echo isset($_POST['start_date']) ? $_POST['start_date'] : ''; ?>" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="endDate" class="form-label">End Date</label>
+                        <input type="date" class="form-control" id="endDate" name="end_date"
+                               value="<?php echo isset($_POST['end_date']) ? $_POST['end_date'] : ''; ?>" required>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="days" class="form-label">Number of Working Days</label>
+                    <input type="text" class="form-control" id="days" readonly>
+                    <small class="text-muted">This is automatically calculated excluding weekends.</small>
+                </div>
+
+                <div class="mb-3">
+                    <label for="reason" class="form-label">Reason for Leave</label>
+                    <textarea class="form-control" id="reason" name="reason" rows="4" required><?php echo isset($_POST['reason']) ? $_POST['reason'] : ''; ?></textarea>
+                </div>
+
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <button type="submit" class="btn btn-primary">Submit Application</button>
+                    <a href="dashboard.php" class="btn btn-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 
-<?php include '../includes/footer.php'; ?>
+<footer class="bg-success text-white text-center py-3 mt-4">
+    <div class="container">
+        <p class="mb-0">&copy; <?php echo date('Y'); ?> Leave Management System. All rights reserved.</p>
+    </div>
+</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<!-- Include Flatpickr for better date picker -->
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<?php include '../includes/footer-scripts.php'; ?>
+
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        flatpickr(".datepicker", {
-            dateFormat: "Y-m-d",
-            minDate: "today",
-            disableMobile: true,
-            allowInput: true
-        });
+        const startDateInput = document.getElementById('startDate');
+        const endDateInput = document.getElementById('endDate');
+        const daysInput = document.getElementById('days');
 
-        const startDateInput = document.getElementById('start_date');
-        const endDateInput = document.getElementById('end_date');
+        // Function to calculate working days between two dates
+        function calculateWorkingDays() {
+            const startDate = new Date(startDateInput.value);
+            const endDate = new Date(endDateInput.value);
 
-        function updateLeaveDays() {
-            const startDate = startDateInput.value;
-            const endDate = endDateInput.value;
-
-            if (startDate && endDate) {
-                console.log("Dates selected:", startDate, "to", endDate);
+            if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+                daysInput.value = '';
+                return;
             }
+
+            // Add one day to include the end date
+            endDate.setDate(endDate.getDate() + 1);
+
+            let workingDays = 0;
+            const currentDate = new Date(startDate);
+
+            while (currentDate < endDate) {
+                // Check if it's a weekday (0 = Sunday, 6 = Saturday)
+                const dayOfWeek = currentDate.getDay();
+                if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                    workingDays++;
+                }
+
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+
+            daysInput.value = workingDays;
         }
 
-        startDateInput.addEventListener('change', updateLeaveDays);
-        endDateInput.addEventListener('change', updateLeaveDays);
+        startDateInput.addEventListener('change', calculateWorkingDays);
+        endDateInput.addEventListener('change', calculateWorkingDays);
+
+        // Set minimum date to today
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        const todayFormatted = `${yyyy}-${mm}-${dd}`;
+
+        startDateInput.setAttribute('min', todayFormatted);
+        endDateInput.setAttribute('min', todayFormatted);
     });
 </script>
 </body>

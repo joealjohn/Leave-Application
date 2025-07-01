@@ -7,37 +7,34 @@ if (!isLoggedIn() || !isAdmin()) {
 }
 
 try {
-    $stmt = $pdo->query("SELECT COUNT(*) FROM users");
-    $totalUsers = $stmt->fetchColumn();
-
     $stmt = $pdo->query("SELECT COUNT(*) FROM leave_requests");
     $totalRequests = $stmt->fetchColumn();
 
-    $stmt = $pdo->query("SELECT COUNT(*) FROM leave_requests WHERE status = 'pending'");
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM leave_requests WHERE status = ?");
+    $stmt->execute(['pending']);
     $pendingRequests = $stmt->fetchColumn();
 
-    $stmt = $pdo->query("SELECT COUNT(*) FROM leave_requests WHERE status = 'approved'");
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM leave_requests WHERE status = ?");
+    $stmt->execute(['approved']);
     $approvedRequests = $stmt->fetchColumn();
 
-    $stmt = $pdo->query("
-        SELECT lr.*, u.name as user_name
-        FROM leave_requests lr
-        JOIN users u ON lr.user_id = u.id
-        ORDER BY lr.applied_at DESC
-        LIMIT 5
-    ");
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM leave_requests WHERE status = ?");
+    $stmt->execute(['rejected']);
+    $rejectedRequests = $stmt->fetchColumn();
+
+    $stmt = $pdo->query("SELECT lr.*, u.name as user_name 
+                        FROM leave_requests lr 
+                        JOIN users u ON lr.user_id = u.id 
+                        ORDER BY lr.applied_at DESC LIMIT 5");
     $recentRequests = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $stmt = $pdo->query("
-        SELECT *
-        FROM users
-        ORDER BY created_at DESC
-        LIMIT 5
-    ");
-    $recentUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
 } catch (PDOException $e) {
-    $error = "Database error: " . $e->getMessage();
+    error_log("Dashboard stats error: " . $e->getMessage());
+    $totalRequests = 0;
+    $pendingRequests = 0;
+    $approvedRequests = 0;
+    $rejectedRequests = 0;
+    $recentRequests = [];
 }
 ?>
 
@@ -50,214 +47,260 @@ try {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="../assets/css/style.css">
+    <style>
+        .stat-card {
+            border-radius: 10px;
+            transition: transform 0.3s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+
+        .display-4 {
+            font-size: 2.5rem;
+        }
+
+        .recent-requests-table th {
+            background-color: #f5f5f5;
+        }
+
+        @media (max-width: 768px) {
+            .display-4 {
+                font-size: 2rem;
+            }
+        }
+    </style>
 </head>
 <body>
 <?php include '../includes/admin-navbar.php'; ?>
 
-<div class="content-wrapper">
-    <div class="container-fluid py-4">
-        <h2 class="mb-4">Admin Dashboard</h2>
+<div class="container-fluid py-4">
+    <?php displayMessage(); ?>
 
-        <?php displayMessage(); ?>
+    <h2 class="mb-4">Admin Dashboard</h2>
 
-        <?php if (isset($error)): ?>
-            <div class="alert alert-danger"><?php echo $error; ?></div>
-        <?php endif; ?>
-
-        <!-- Dashboard Cards -->
-        <div class="row">
-            <div class="col-md-3">
-                <div class="card bg-primary text-white mb-4 hover-effect">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="card-title">Total Users</h6>
-                                <h2 class="mb-0"><?php echo $totalUsers; ?></h2>
-                            </div>
-                            <i class="fas fa-users fa-3x opacity-50"></i>
+    <div class="row">
+        <div class="col-md-3 mb-4">
+            <div class="card bg-primary text-white stat-card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h5 class="card-title">Total Requests</h5>
+                            <p class="card-text display-4"><?php echo $totalRequests; ?></p>
+                        </div>
+                        <div class="stat-icon">
+                            <i class="fas fa-file-alt fa-3x opacity-25"></i>
                         </div>
                     </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card bg-info text-white mb-4 hover-effect">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="card-title">Total Requests</h6>
-                                <h2 class="mb-0"><?php echo $totalRequests; ?></h2>
-                            </div>
-                            <i class="fas fa-list-alt fa-3x opacity-50"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card bg-warning text-white mb-4 hover-effect">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="card-title">Pending Requests</h6>
-                                <h2 class="mb-0"><?php echo $pendingRequests; ?></h2>
-                            </div>
-                            <i class="fas fa-clock fa-3x opacity-50"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card bg-success text-white mb-4 hover-effect">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="card-title">Approved Requests</h6>
-                                <h2 class="mb-0"><?php echo $approvedRequests; ?></h2>
-                            </div>
-                            <i class="fas fa-check-circle fa-3x opacity-50"></i>
-                        </div>
-                    </div>
+                    <a href="all_requests.php" class="btn btn-outline-light btn-sm mt-3">
+                        <i class="fas fa-list me-1"></i> View All
+                    </a>
                 </div>
             </div>
         </div>
 
-        <div class="row mt-4">
-            <!-- Recent Leave Requests -->
-            <div class="col-md-7">
-                <div class="card">
-                    <div class="card-header bg-success text-white">
-                        <h5 class="mb-0">Recent Leave Requests</h5>
-                    </div>
-                    <div class="card-body">
-                        <?php if (count($recentRequests) > 0): ?>
-                            <div class="table-responsive">
-                                <table class="table table-hover">
-                                    <thead>
-                                    <tr>
-                                        <th>Employee</th>
-                                        <th>Type</th>
-                                        <th>From</th>
-                                        <th>To</th>
-                                        <th>Status</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody>
-                                    <?php foreach ($recentRequests as $request): ?>
-                                        <tr>
-                                            <td><?php echo $request['user_name']; ?></td>
-                                            <td><?php echo ucfirst($request['leave_type']); ?></td>
-                                            <td><?php echo formatDateForDisplay($request['start_date'], 'Y-m-d'); ?></td>
-                                            <td><?php echo formatDateForDisplay($request['end_date'], 'Y-m-d'); ?></td>
-                                            <td>
-                                                        <span class="badge bg-<?php
-                                                        echo $request['status'] === 'approved' ? 'success' :
-                                                            ($request['status'] === 'rejected' ? 'danger' : 'warning');
-                                                        ?>">
-                                                            <?php echo ucfirst($request['status']); ?>
-                                                        </span>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                            <div class="text-center mt-3">
-                                <a href="all_requests.php" class="btn btn-success">
-                                    <i class="fas fa-list-alt me-1"></i> View All Requests
-                                </a>
-                            </div>
-                        <?php else: ?>
-                            <p class="text-center">No leave requests found</p>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Recent Users -->
-            <div class="col-md-5">
-                <div class="card">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0">Recent Users</h5>
-                    </div>
-                    <div class="card-body">
-                        <?php if (count($recentUsers) > 0): ?>
-                            <div class="table-responsive">
-                                <table class="table table-hover">
-                                    <thead>
-                                    <tr>
-                                        <th>Name</th>
-                                        <th>Email</th>
-                                        <th>Role</th>
-                                        <th>Date</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody>
-                                    <?php foreach ($recentUsers as $user): ?>
-                                        <tr>
-                                            <td><?php echo $user['name']; ?></td>
-                                            <td><?php echo $user['email']; ?></td>
-                                            <td>
-                                                        <span class="badge bg-<?php echo $user['role'] === 'admin' ? 'danger' : 'info'; ?>">
-                                                            <?php echo ucfirst($user['role']); ?>
-                                                        </span>
-                                            </td>
-                                            <td><?php echo formatDateForDisplay($user['created_at'], 'Y-m-d'); ?></td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                            <div class="text-center mt-3">
-                                <a href="manage_users.php" class="btn btn-primary">
-                                    <i class="fas fa-users me-1"></i> Manage Users
-                                </a>
-                            </div>
-                        <?php else: ?>
-                            <p class="text-center">No users found</p>
-                        <?php endif; ?>
-                    </div>
-                </div>
-
-                <!-- Quick Links Card -->
-                <div class="card mt-3">
-                    <div class="card-header bg-info text-white">
-                        <h5 class="mb-0">Quick Links</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-6 mb-2">
-                                <a href="all_requests.php" class="btn btn-outline-success w-100">
-                                    <i class="fas fa-list-alt me-1"></i> All Requests
-                                </a>
-                            </div>
-                            <div class="col-6 mb-2">
-                                <a href="manage_users.php" class="btn btn-outline-primary w-100">
-                                    <i class="fas fa-users me-1"></i> Manage Users
-                                </a>
-                            </div>
-                            <div class="col-6 mb-2">
-                                <a href="reports.php" class="btn btn-outline-warning w-100">
-                                    <i class="fas fa-chart-bar me-1"></i> Reports
-                                </a>
-                            </div>
-                            <div class="col-6 mb-2">
-                                <a href="profile.php" class="btn btn-outline-info w-100">
-                                    <i class="fas fa-user-circle me-1"></i> Profile
-                                </a>
-                            </div>
+        <div class="col-md-3 mb-4">
+            <div class="card bg-warning text-dark stat-card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h5 class="card-title">Pending Requests</h5>
+                            <p class="card-text display-4"><?php echo $pendingRequests; ?></p>
+                        </div>
+                        <div class="stat-icon">
+                            <i class="fas fa-hourglass-half fa-3x opacity-25"></i>
                         </div>
                     </div>
+                    <a href="all_requests.php?status=pending" class="btn btn-outline-dark btn-sm mt-3">
+                        <i class="fas fa-clock me-1"></i> View Pending
+                    </a>
                 </div>
             </div>
         </div>
 
-        <!-- Add a spacer at the bottom to ensure content doesn't get hidden by footer -->
-        <div class="back-btn-container"></div>
+        <div class="col-md-3 mb-4">
+            <div class="card bg-success text-white stat-card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h5 class="card-title">Approved Requests</h5>
+                            <p class="card-text display-4"><?php echo $approvedRequests; ?></p>
+                        </div>
+                        <div class="stat-icon">
+                            <i class="fas fa-check-circle fa-3x opacity-25"></i>
+                        </div>
+                    </div>
+                    <a href="all_requests.php?status=approved" class="btn btn-outline-light btn-sm mt-3">
+                        <i class="fas fa-thumbs-up me-1"></i> View Approved
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3 mb-4">
+            <div class="card bg-danger text-white stat-card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h5 class="card-title">Rejected Requests</h5>
+                            <p class="card-text display-4"><?php echo $rejectedRequests; ?></p>
+                        </div>
+                        <div class="stat-icon">
+                            <i class="fas fa-times-circle fa-3x opacity-25"></i>
+                        </div>
+                    </div>
+                    <a href="all_requests.php?status=rejected" class="btn btn-outline-light btn-sm mt-3">
+                        <i class="fas fa-thumbs-down me-1"></i> View Rejected
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
-</div> <!-- End of content-wrapper -->
 
-<?php include '../includes/footer.php'; ?>
+    <!-- Recent Activity Section -->
+    <div class="row mt-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Recent Leave Requests</h5>
+                    <a href="all_requests.php" class="btn btn-sm btn-primary">View All</a>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover recent-requests-table">
+                            <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Employee</th>
+                                <th>Type</th>
+                                <th>Duration</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <?php if (count($recentRequests) > 0): ?>
+                                <?php foreach ($recentRequests as $request): ?>
+                                    <tr>
+                                        <td>#<?php echo $request['id']; ?></td>
+                                        <td><?php echo htmlspecialchars($request['user_name']); ?></td>
+                                        <td>
+                                            <?php
+                                            $typeClass = '';
+                                            switch ($request['leave_type']) {
+                                                case 'sick': $typeClass = 'bg-danger'; break;
+                                                case 'vacation': $typeClass = 'bg-primary'; break;
+                                                case 'personal': $typeClass = 'bg-info'; break;
+                                                case 'emergency': $typeClass = 'bg-warning text-dark'; break;
+                                                default: $typeClass = 'bg-secondary';
+                                            }
+                                            ?>
+                                            <span class="badge <?php echo $typeClass; ?>"><?php echo ucfirst($request['leave_type']); ?></span>
+                                        </td>
+                                        <td>
+                                            <?php
+                                            $start = date("M d", strtotime($request['start_date']));
+                                            $end = date("M d", strtotime($request['end_date']));
+                                            echo $start . ' - ' . $end;
+                                            ?>
+                                        </td>
+                                        <td>
+                                            <?php
+                                            $statusClass = '';
+                                            switch ($request['status']) {
+                                                case 'approved': $statusClass = 'bg-success'; break;
+                                                case 'rejected': $statusClass = 'bg-danger'; break;
+                                                default: $statusClass = 'bg-warning text-dark';
+                                            }
+                                            ?>
+                                            <span class="badge <?php echo $statusClass; ?>"><?php echo ucfirst($request['status']); ?></span>
+                                        </td>
+                                        <td>
+                                            <a href="view_request.php?id=<?php echo $request['id']; ?>" class="btn btn-sm btn-info">
+                                                <i class="fas fa-eye"></i> View
+                                            </a>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr>
+                                    <td colspan="6" class="text-center">No recent leave requests found</td>
+                                </tr>
+                            <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group">
+                        <a href="all_requests.php?status=pending" class="list-group-item list-group-item-action">
+                            <i class="fas fa-hourglass-half me-2 text-warning"></i> Review Pending Requests
+                        </a>
+                        <a href="manage_users.php" class="list-group-item list-group-item-action">
+                            <i class="fas fa-user-plus me-2 text-primary"></i> Manage Users
+                        </a>
+                        <a href="reports.php" class="list-group-item list-group-item-action">
+                            <i class="fas fa-chart-bar me-2 text-success"></i> Generate Reports
+                        </a>
+                        <a href="profile.php" class="list-group-item list-group-item-action">
+                            <i class="fas fa-user-cog me-2 text-info"></i> Update Profile
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Info Card -->
+            <div class="card mt-4">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">System Information</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Total Users
+                            <span class="badge bg-primary rounded-pill">
+                                    <?php
+                                    $stmt = $pdo->query("SELECT COUNT(*) FROM users");
+                                    echo $stmt->fetchColumn();
+                                    ?>
+                                </span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Admins
+                            <span class="badge bg-info rounded-pill">
+                                    <?php
+                                    $stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin'");
+                                    echo $stmt->fetchColumn();
+                                    ?>
+                                </span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            Regular Users
+                            <span class="badge bg-secondary rounded-pill">
+                                    <?php
+                                    $stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'user'");
+                                    echo $stmt->fetchColumn();
+                                    ?>
+                                </span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="../assets/js/scripts.js"></script>
+<?php include '../includes/footer-scripts.php'; ?>
 </body>
 </html>

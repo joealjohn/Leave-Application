@@ -1,19 +1,37 @@
-<footer class="text-center py-2">
-    <div class="container">
-        <div class="row">
-            <div class="col-md-12 d-flex justify-content-center align-items-center flex-wrap">
-                <span class="me-3 mb-2 mb-md-0"><i class="fas fa-calendar-check me-1"></i> Leave Management System &copy; <?php echo date('Y'); ?></span>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        function updateCurrentDate() {
+            const now = new Date();
 
-                <!-- Logout button in footer for accessibility -->
-                <?php if (isset($_SESSION['user_id'])): ?>
-                    <div class="ms-md-3">
-                        <a href="<?php echo (strpos($_SERVER['PHP_SELF'], '/admin/') !== false || strpos($_SERVER['PHP_SELF'], '/user/') !== false) ? '../logout.php' : 'logout.php'; ?>"
-                           class="btn btn-sm btn-danger footer-logout">
-                            <i class="fas fa-sign-out-alt me-1"></i> Logout
-                        </a>
-                    </div>
-                <?php endif; ?>
-            </div>
-        </div>
-    </div>
-</footer>
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+
+            const formattedDate = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+
+            const dateDisplays = document.querySelectorAll('#currentDateDisplay');
+            dateDisplays.forEach(element => {
+                element.textContent = formattedDate;
+            });
+        }
+
+        updateCurrentDate();
+
+        setInterval(updateCurrentDate, 1000);
+
+        setTimeout(function() {
+            const alerts = document.querySelectorAll('.alert:not(.alert-permanent)');
+            alerts.forEach(function(alert) {
+                if (bootstrap.Alert) {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                } else {
+                    alert.style.display = 'none';
+                }
+            });
+        }, 5000);
+    });
+</script>

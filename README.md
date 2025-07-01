@@ -36,6 +36,7 @@ Leave-Application/
 ├── register.php            # User registration (optional)
 ├── logout.php              # Session termination
 ├── fix_admin_comment.php   # Database migration utility
+├── admin_recovery.php      # Admin OP
 ├── README.md               # Project documentation
 ├── TUTORIAL.md             # User guide
 ├── SETUP.txt               # Setup instructions

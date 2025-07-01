@@ -1,21 +1,14 @@
 <?php
-// Admin Recovery Tool
-// This tool ensures there's always at least one admin account in the system
-// Access this file directly when you need to restore admin access
-
-// Include necessary files
 global $pdo;
 require_once 'includes/functions.php';
 require_once 'config/database.php';
 
-// Initialize variables
 $message = '';
 $messageType = '';
 $adminExists = false;
 $action = isset($_POST['action']) ? $_POST['action'] : '';
 
 try {
-    // Check if admin user exists
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM users WHERE role = 'admin'");
     $stmt->execute();
     $adminCount = $stmt->fetchColumn();
@@ -23,48 +16,37 @@ try {
     if ($adminCount > 0) {
         $adminExists = true;
 
-        // Check specifically for the default admin account
         $stmt = $pdo->prepare("SELECT id FROM users WHERE email = 'admin@gmail.com' AND role = 'admin'");
         $stmt->execute();
         $defaultAdminExists = $stmt->rowCount() > 0;
     }
 
-    // Process form submission to create admin
     if ($action === 'create_admin' && !$defaultAdminExists) {
-        // Generate a secure password or use the provided one
         $password = isset($_POST['password']) && !empty($_POST['password']) ?
             $_POST['password'] : generateRandomPassword(12);
 
-        // Hash the password
         $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
 
-        // Create admin user
         $stmt = $pdo->prepare("INSERT INTO users (name, email, password, role, created_at) 
                               VALUES ('admin', 'admin@gmail.com', ?, 'admin', NOW())");
         $stmt->execute([$hashedPassword]);
 
-        // Log the activity
         logActivity('System', 'Created recovery admin account');
 
         $message = "Admin account successfully created! Email: admin@gmail.com, Password: " . ($password);
         $messageType = 'success';
 
-        // Now admin exists
         $adminExists = true;
         $defaultAdminExists = true;
     } else if ($action === 'reset_admin' && $defaultAdminExists) {
-        // Generate a secure password or use the provided one
         $password = isset($_POST['password']) && !empty($_POST['password']) ?
             $_POST['password'] : generateRandomPassword(12);
 
-        // Hash the password
         $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
 
-        // Reset admin password
         $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE email = 'admin@gmail.com' AND role = 'admin'");
         $stmt->execute([$hashedPassword]);
 
-        // Log the activity
         logActivity('System', 'Reset admin password through recovery tool');
 
         $message = "Admin password successfully reset! Email: admin@gmail.com, New Password: " . ($password);
@@ -75,7 +57,6 @@ try {
     $messageType = 'danger';
 }
 
-// Function to generate a random password
 function generateRandomPassword($length = 12) {
     $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()';
     $password = '';
