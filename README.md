@@ -1,17 +1,13 @@
 # 🏢 Leave Management System
+
 <p align="center">
-  <a href="https://github.com/yourusername/leave-management-system/releases">
-    <img src="https://img.shields.io/github/v/release/yourusername/leave-management-system?label=RELEASES&style=flat-square&color=blue" alt="Releases">
-  </a>
-  <a href="https://github.com/yourusername/leave-management-system/actions">
-    <img src="https://img.shields.io/github/actions/workflow/status/yourusername/leave-management-system/php.yml?label=BUILD&style=flat-square" alt="Build">
-  </a>
-  <img src="https://img.shields.io/badge/Download-ZIP-4c4c4c?style=flat-square">
-  <img src="https://img.shields.io/badge/Repo%20or%20Workflow%20Not%20Found-red?style=flat-square">
-  <a href="https://discord.gg/yourdiscordinvite">
-    <img src="https://img.shields.io/discord/123456789012345678?label=DISCORD&style=flat-square&color=5865F2" alt="Discord">
-  </a>
+  <img src="https://img.shields.io/badge/Leave%20Management%20System-v1.0-blueviolet?style=for-the-badge&logo=codeforces" alt="Leave Management System" />
+  <br><br>
+  <img src="https://img.shields.io/badge/PHP-8.0+-777BB4?style=for-the-badge&logo=php&logoColor=white" alt="PHP Badge"/>
+  <img src="https://img.shields.io/badge/MySQL-5.7+-4479A1?style=for-the-badge&logo=mysql&logoColor=white" alt="MySQL Badge"/>
+  <img src="https://img.shields.io/badge/Bootstrap-5.3-7952B3?style=for-the-badge&logo=bootstrap&logoColor=white" alt="Bootstrap Badge"/>
 </p>
+
 A **comprehensive web-based Leave Management System** that automates leave request submission, approval workflows, and employee leave tracking.
 
 ---
