@@ -75,3 +75,7 @@ This **Leave Management System** simplifies the leave application and approval p
 - Secure session management  
 - Server & client-side form validation  
 ---
+### 📄 License
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+© 2025 Leave Management System. Created as a college mini project by Joeal John.
