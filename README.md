@@ -68,38 +68,6 @@ This **Leave Management System** simplifies the leave application and approval p
 - Server & client-side form validation  
 
 ---
-
-## 📁 Project Structure
-
-leave-application/
-├── admin/
-│   ├── dashboard.php                # Admin main dashboard
-│   ├── employees.php                # Employee management
-│   ├── leave_types.php              # Configure leave types
-│   ├── manage_requests.php          # Manage leave requests
-│   ├── reports.php                  # Generate reports
-│   └── view_request.php             # View detailed leave request
-├── assets/
-│   ├── css/
-│   │   ├── style.css                # Custom styles
-│   │   └── ...
-│   ├── js/
-│   │   ├── main.js                  # Custom JavaScript
-│   │   └── ...
-│   └── images/
-│       └── ...
-├── includes/
-│   ├── admin-navbar.php             # Admin navigation bar
-│   ├── footer-scripts.php           # Common footer scripts
-│   ├── functions.php                # Core system functions
-│   └── user-navbar.php              # User navigation bar
-├── user/
-│   ├── apply_leave.php              # Apply for leave form
-│   ├── dashboard.php                # User dashboard
-│   ├── my_requests.php              # View own leave requests
-│   └── profile.php                  # User profile management
-├── config.php                       # Database configuration
-├── index.php                        # Main entry point
 ├── login.php                        # Login page
 ├── logout.php                       # Logout process
 └── register.php                     # New user registration
