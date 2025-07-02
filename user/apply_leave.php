@@ -1,16 +1,14 @@
 <?php
+global $pdo;
 require_once '../includes/functions.php';
 
-// Check if user is logged in
 if (!isLoggedIn()) {
     redirectWithMessage('../login.php', 'You must log in to access this page', 'warning');
 }
 
-// Get user details
 $userId = $_SESSION['user_id'];
 $userDetails = getUserDetails($userId);
 
-// Hardcoded leave types
 $leaveTypes = [
     'sick' => 'Sick Leave',
     'vacation' => 'Vacation Leave',
@@ -18,15 +16,39 @@ $leaveTypes = [
     'personal' => 'Personal Leave'
 ];
 
-// Process form submission
+try {
+    $checkTable = $pdo->query("SHOW TABLES LIKE 'leave_requests'");
+    if ($checkTable->rowCount() == 0) {
+        $createTableSQL = "
+            CREATE TABLE `leave_requests` (
+              `id` int(11) NOT NULL AUTO_INCREMENT,
+              `user_id` int(11) NOT NULL,
+              `leave_type` varchar(50) NOT NULL,
+              `start_date` date NOT NULL,
+              `end_date` date NOT NULL,
+              `days` int(11) DEFAULT NULL,
+              `reason` text NOT NULL,
+              `status` enum('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+              `approved_by` int(11) DEFAULT NULL,
+              `approved_at` datetime DEFAULT NULL,
+              `applied_at` datetime DEFAULT NULL,
+              PRIMARY KEY (`id`),
+              KEY `user_id` (`user_id`),
+              KEY `approved_by` (`approved_by`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ";
+        $pdo->exec($createTableSQL);
+    }
+} catch (PDOException $e) {
+    error_log("Error checking/creating table: " . $e->getMessage());
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Get form data
     $leaveType = sanitizeInput($_POST['leave_type'] ?? '');
     $startDate = sanitizeInput($_POST['start_date'] ?? '');
     $endDate = sanitizeInput($_POST['end_date'] ?? '');
     $reason = sanitizeInput($_POST['reason'] ?? '');
 
-    // Validate inputs
     $errors = [];
 
     if (empty($leaveType)) {
@@ -41,7 +63,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = "Valid end date is required";
     }
 
-    // Check if start date is before end date
     if (isValidDate($startDate) && isValidDate($endDate)) {
         $start = new DateTime($startDate);
         $end = new DateTime($endDate);
@@ -55,28 +76,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = "Reason is required";
     }
 
-    // Calculate leave days
     $leaveDays = calculateLeaveDays($startDate, $endDate);
 
-    // If no errors, save leave request
     if (empty($errors)) {
         try {
             global $pdo;
 
-            // First, let's check the table structure to ensure we're using the correct columns
             $tableCheck = $pdo->query("DESCRIBE leave_requests");
             $columns = [];
             while($row = $tableCheck->fetch(PDO::FETCH_ASSOC)) {
                 $columns[] = $row['Field'];
             }
 
-            // Adapt our query to the actual table structure
-            // Basic query with minimal columns that should exist
             $sql = "INSERT INTO leave_requests (user_id, leave_type, start_date, end_date, reason, status";
             $values = "(?, ?, ?, ?, ?, 'pending'";
             $params = [$userId, $leaveType, $startDate, $endDate, $reason];
 
-            // Add optional columns if they exist
             if (in_array('days', $columns)) {
                 $sql .= ", days";
                 $values .= ", ?";
@@ -89,19 +104,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $params[] = getCurrentDateTime();
             }
 
-            // Close the SQL statement
             $sql .= ") VALUES " . $values . ")";
 
-            // Prepare and execute the statement
             $stmt = $pdo->prepare($sql);
             $stmt->execute($params);
 
-            // Log activity
             logActivity('leave_request', "Applied for {$leaveType} leave from {$startDate} to {$endDate}");
 
             redirectWithMessage('my_requests.php', 'Leave request submitted successfully. It is pending approval.', 'success');
         } catch (PDOException $e) {
-            // Log detailed error for debugging
             error_log("Error submitting leave request: " . $e->getMessage());
             $errors[] = "An error occurred while submitting your request. Please try again.";
         }
@@ -199,7 +210,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const endDateInput = document.getElementById('endDate');
         const daysInput = document.getElementById('days');
 
-        // Function to calculate working days between two dates
         function calculateWorkingDays() {
             const startDate = new Date(startDateInput.value);
             const endDate = new Date(endDateInput.value);
@@ -209,14 +219,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 return;
             }
 
-            // Add one day to include the end date
             endDate.setDate(endDate.getDate() + 1);
 
             let workingDays = 0;
             const currentDate = new Date(startDate);
 
             while (currentDate < endDate) {
-                // Check if it's a weekday (0 = Sunday, 6 = Saturday)
                 const dayOfWeek = currentDate.getDay();
                 if (dayOfWeek !== 0 && dayOfWeek !== 6) {
                     workingDays++;
@@ -231,7 +239,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         startDateInput.addEventListener('change', calculateWorkingDays);
         endDateInput.addEventListener('change', calculateWorkingDays);
 
-        // Set minimum date to today
         const today = new Date();
         const yyyy = today.getFullYear();
         const mm = String(today.getMonth() + 1).padStart(2, '0');

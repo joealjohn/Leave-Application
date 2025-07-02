@@ -1,86 +1,58 @@
 <?php
-global $pdo;
 require_once '../includes/functions.php';
 
 if (!isLoggedIn() || !isAdmin()) {
-    redirectWithMessage('../login.php', 'You must log in as admin to access this page', 'warning');
+    redirectWithMessage('../login.php', 'You must be an admin to access this page', 'warning');
 }
 
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
+$fromDate = '';
+$toDate = '';
+$leaveType = '';
+$status = '';
+$reports = [];
 
-$reportType = $_GET['type'] ?? 'all';
-$startDate = $_GET['start_date'] ?? date('Y-m-01');
-$endDate = $_GET['end_date'] ?? date('Y-m-t');
-$userId = $_GET['user_id'] ?? null;
-$leaveType = $_GET['leave_type'] ?? null;
-$department = $_GET['department'] ?? null;
-$status = $_GET['status'] ?? null;
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $fromDate = sanitizeInput($_POST['from_date'] ?? '');
+    $toDate = sanitizeInput($_POST['to_date'] ?? '');
+    $leaveType = sanitizeInput($_POST['leave_type'] ?? '');
+    $status = sanitizeInput($_POST['status'] ?? '');
 
-function isValidDate($date, $format = 'Y-m-d') {
-    if (empty($date)) {
-        return false;
+    $sql = "SELECT lr.*, u.name as user_name, u.email as user_email 
+            FROM leave_requests lr
+            JOIN users u ON lr.user_id = u.id
+            WHERE 1=1";
+    $params = [];
+
+    if (!empty($fromDate) && isValidDate($fromDate)) {
+        $sql .= " AND lr.start_date >= ?";
+        $params[] = $fromDate;
     }
 
-    $d = DateTime::createFromFormat($format, $date);
-    return $d && $d->format($format) === $date;
-}
-
-if (!isValidDate($startDate) || !isValidDate($endDate)) {
-    $startDate = date('Y-m-01');
-    $endDate = date('Y-m-t');
-}
-
-try {
-    $sql = "SELECT lr.*, u.name as user_name, u.email, u.department 
-            FROM leave_requests lr 
-            JOIN users u ON lr.user_id = u.id 
-            WHERE lr.start_date >= ? AND lr.end_date <= ?";
-
-    $params = [$startDate, $endDate];
-
-    if ($userId) {
-        $sql .= " AND lr.user_id = ?";
-        $params[] = $userId;
+    if (!empty($toDate) && isValidDate($toDate)) {
+        $sql .= " AND lr.end_date <= ?";
+        $params[] = $toDate;
     }
 
-    if ($leaveType) {
+    if (!empty($leaveType)) {
         $sql .= " AND lr.leave_type = ?";
         $params[] = $leaveType;
     }
 
-    if ($department) {
-        $sql .= " AND u.department = ?";
-        $params[] = $department;
-    }
-
-    if ($status) {
+    if (!empty($status)) {
         $sql .= " AND lr.status = ?";
         $params[] = $status;
     }
 
-    $sql .= " ORDER BY lr.start_date DESC";
+    $sql .= " ORDER BY lr.applied_at DESC";
 
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $reportData = $stmt->fetchAll();
-
-    $stmt = $pdo->query("SELECT DISTINCT department FROM users WHERE department IS NOT NULL ORDER BY department");
-    $departments = $stmt->fetchAll(PDO::FETCH_COLUMN);
-
-    $stmt = $pdo->query("SELECT DISTINCT leave_type FROM leave_requests ORDER BY leave_type");
-    $leaveTypes = $stmt->fetchAll(PDO::FETCH_COLUMN);
-
-    $stmt = $pdo->query("SELECT id, name FROM users ORDER BY name");
-    $users = $stmt->fetchAll();
-
-} catch (PDOException $e) {
-    error_log("Database error in reports: " . $e->getMessage());
-    $reportData = [];
-    $departments = [];
-    $leaveTypes = ['sick', 'vacation', 'personal', 'emergency'];
-    $users = [];
+    try {
+        global $pdo;
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $reports = $stmt->fetchAll();
+    } catch (PDOException $e) {
+        error_log("Error fetching reports: " . $e->getMessage());
+    }
 }
 ?>
 
@@ -98,39 +70,50 @@ try {
 <?php include '../includes/admin-navbar.php'; ?>
 
 <div class="container-fluid py-4">
-    <h2 class="mb-4">Leave Reports</h2>
+    <h2 class="mb-4"><i class="fas fa-chart-bar me-2"></i>Leave Reports</h2>
 
     <?php displayMessage(); ?>
 
     <div class="card mb-4">
-        <div class="card-header bg-light">
+        <div class="card-header bg-primary text-white">
             <h5 class="mb-0">Filter Reports</h5>
         </div>
         <div class="card-body">
-            <form method="GET" class="row">
-                <div class="col-md-3 mb-3">
-                    <label for="startDate" class="form-label">Start Date</label>
-                    <input type="date" class="form-control" id="startDate" name="start_date" value="<?php echo $startDate; ?>">
+            <form method="POST" action="" class="row g-3">
+                <div class="col-md-3">
+                    <label for="fromDate" class="form-label">From Date</label>
+                    <input type="date" class="form-control" id="fromDate" name="from_date" value="<?php echo $fromDate; ?>">
                 </div>
 
-                <div class="col-md-3 mb-3">
-                    <label for="endDate" class="form-label">End Date</label>
-                    <input type="date" class="form-control" id="endDate" name="end_date" value="<?php echo $endDate; ?>">
+                <div class="col-md-3">
+                    <label for="toDate" class="form-label">To Date</label>
+                    <input type="date" class="form-control" id="toDate" name="to_date" value="<?php echo $toDate; ?>">
                 </div>
 
-                <div class="col-md-3 mb-3">
-                    <label for="status" class="form-label">Status</label>
-                    <select class="form-select" id="status" name="status">
-                        <option value="">All Status</option>
-                        <option value="pending" <?php echo $status == 'pending' ? 'selected' : ''; ?>>Pending</option>
-                        <option value="approved" <?php echo $status == 'approved' ? 'selected' : ''; ?>>Approved</option>
-                        <option value="rejected" <?php echo $status == 'rejected' ? 'selected' : ''; ?>>Rejected</option>
+                <div class="col-md-2">
+                    <label for="leaveType" class="form-label">Leave Type</label>
+                    <select class="form-select" id="leaveType" name="leave_type">
+                        <option value="">All Types</option>
+                        <option value="sick" <?php echo $leaveType === 'sick' ? 'selected' : ''; ?>>Sick Leave</option>
+                        <option value="vacation" <?php echo $leaveType === 'vacation' ? 'selected' : ''; ?>>Vacation Leave</option>
+                        <option value="emergency" <?php echo $leaveType === 'emergency' ? 'selected' : ''; ?>>Emergency Leave</option>
+                        <option value="personal" <?php echo $leaveType === 'personal' ? 'selected' : ''; ?>>Personal Leave</option>
                     </select>
                 </div>
 
-                <div class="col-md-3 mb-3 d-flex align-items-end">
+                <div class="col-md-2">
+                    <label for="status" class="form-label">Status</label>
+                    <select class="form-select" id="status" name="status">
+                        <option value="">All Status</option>
+                        <option value="pending" <?php echo $status === 'pending' ? 'selected' : ''; ?>>Pending</option>
+                        <option value="approved" <?php echo $status === 'approved' ? 'selected' : ''; ?>>Approved</option>
+                        <option value="rejected" <?php echo $status === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
+                    </select>
+                </div>
+
+                <div class="col-md-2 d-flex align-items-end">
                     <button type="submit" class="btn btn-primary w-100">
-                        <i class="fas fa-filter me-1"></i> Apply Filters
+                        <i class="fas fa-filter me-1"></i> Filter
                     </button>
                 </div>
             </form>
@@ -138,69 +121,105 @@ try {
     </div>
 
     <div class="card">
-        <div class="card-header bg-light">
-            <h5 class="mb-0">Leave Request Report</h5>
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Leave Request Reports</h5>
+
+            <?php if (!empty($reports)): ?>
+                <div>
+                    <button type="button" class="btn btn-light btn-sm" onclick="exportToPDF()">
+                        <i class="fas fa-file-pdf me-1"></i> Export to PDF
+                    </button>
+                    <button type="button" class="btn btn-light btn-sm" onclick="exportToExcel()">
+                        <i class="fas fa-file-excel me-1"></i> Export to Excel
+                    </button>
+                </div>
+            <?php endif; ?>
         </div>
+
         <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-striped table-hover">
-                    <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Employee</th>
-                        <th>Leave Type</th>
-                        <th>Start Date</th>
-                        <th>End Date</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    <?php if (!empty($reportData)): ?>
-                        <?php foreach ($reportData as $request): ?>
+            <?php if (empty($reports)): ?>
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i> No leave requests found matching your criteria. Please adjust your filters.
+                </div>
+            <?php else: ?>
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover" id="reportsTable">
+                        <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Employee</th>
+                            <th>Leave Type</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                            <th>Days</th>
+                            <th>Status</th>
+                            <th>Applied On</th>
+                            <th>Actions</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <?php foreach ($reports as $report): ?>
                             <tr>
-                                <td>#<?php echo $request['id']; ?></td>
-                                <td><?php echo htmlspecialchars($request['user_name']); ?></td>
+                                <td><?php echo $report['id']; ?></td>
                                 <td>
-                                            <span class="badge bg-info">
-                                                <?php echo ucfirst($request['leave_type']); ?>
-                                            </span>
+                                    <?php echo htmlspecialchars($report['user_name']); ?><br>
+                                    <small class="text-muted"><?php echo htmlspecialchars($report['user_email']); ?></small>
                                 </td>
-                                <td><?php echo formatDateForDisplay($request['start_date']); ?></td>
-                                <td><?php echo formatDateForDisplay($request['end_date']); ?></td>
+                                <td><?php echo ucfirst($report['leave_type']); ?></td>
+                                <td><?php echo formatDateForDisplay($report['start_date']); ?></td>
+                                <td><?php echo formatDateForDisplay($report['end_date']); ?></td>
+                                <td><?php echo $report['days'] ?? calculateLeaveDays($report['start_date'], $report['end_date']); ?></td>
                                 <td>
-                                    <?php
-                                    $statusClass = '';
-                                    switch ($request['status']) {
-                                        case 'approved': $statusClass = 'bg-success'; break;
-                                        case 'rejected': $statusClass = 'bg-danger'; break;
-                                        default: $statusClass = 'bg-warning text-dark';
-                                    }
-                                    ?>
-                                    <span class="badge <?php echo $statusClass; ?>">
-                                                <?php echo ucfirst($request['status']); ?>
-                                            </span>
+                                    <?php if ($report['status'] === 'pending'): ?>
+                                        <span class="badge bg-warning">Pending</span>
+                                    <?php elseif ($report['status'] === 'approved'): ?>
+                                        <span class="badge bg-success">Approved</span>
+                                    <?php else: ?>
+                                        <span class="badge bg-danger">Rejected</span>
+                                    <?php endif; ?>
                                 </td>
+                                <td><?php echo formatDateForDisplay($report['applied_at'], 'Y-m-d H:i'); ?></td>
                                 <td>
-                                    <a href="view_request.php?id=<?php echo $request['id']; ?>" class="btn btn-sm btn-info">
-                                        <i class="fas fa-eye"></i> View
+                                    <a href="view_request.php?id=<?php echo $report['id']; ?>" class="btn btn-sm btn-info">
+                                        <i class="fas fa-eye"></i>
                                     </a>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
-                    <?php else: ?>
-                        <tr>
-                            <td colspan="7" class="text-center">No leave requests found matching your criteria.</td>
-                        </tr>
-                    <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 </div>
 
+<footer class="bg-success text-white text-center py-3 mt-4">
+    <div class="container">
+        <p class="mb-0">&copy; <?php echo date('Y'); ?> Leave Management System. All rights reserved.</p>
+    </div>
+</footer>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <?php include '../includes/footer-scripts.php'; ?>
+
+<script>
+    function exportToPDF() {
+        window.print();
+    }
+
+    function exportToExcel() {
+        let table = document.getElementById("reportsTable");
+        let html = table.outerHTML.replace(/ /g, '%20');
+
+        let downloadLink = document.createElement("a");
+        document.body.appendChild(downloadLink);
+
+        downloadLink.href = 'data:application/vnd.ms-excel,' + html;
+        downloadLink.download = 'leave_report_<?php echo date('Y-m-d'); ?>.xls';
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+    }
+</script>
 </body>
 </html>
